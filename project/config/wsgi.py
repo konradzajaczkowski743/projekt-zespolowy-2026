@@ -1,11 +1,5 @@
 """
-WSGI configuration for the the project project.
-
-Exposes the WSGI callable as a module-level variable named ``application``.
-Used for synchronous deployments with servers such as Gunicorn or uWSGI.
-
-Documentation:
-    https://docs.djangoproject.com/en/5.0/howto/deployment/wsgi/
+WSGI configuration for the project.
 """
 import os
 
