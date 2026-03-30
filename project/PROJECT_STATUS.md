@@ -19,11 +19,11 @@ Obecnie projekt to aplikacja w Django. Wstępna konfiguracja została ukończona
 * `media/photos/` - Miejsce docelowe dla przesyłanych zdjęć.
 * `ml_engine/` - Aplikacja trzymająca logikę eksperymentalnych usług ML.
   Poszczególne pilki w folderze są tylko mockami faktycnzej logiki i usług które zaimplementujemy, kolejno:
-  `alpr.py` (automatic licence plate recognition) - rozpoznawanie tablic rejestracyjnych.
-  `forensics.py` - analiza metadanych.
-  `geolocator.py` - rozpoznawanie geolokalizacji.
-  `object_det.py` - detekcja i rozpoznawanie obiektów.
-  `pipeline.py` - plik którey realizuje pokolei usługi (przeprowadza pełną analizę) na jednym zdjęciu
+* `alpr.py` (automatic licence plate recognition) - rozpoznawanie tablic rejestracyjnych.
+* `forensics.py` - analiza metadanych.
+* `geolocator.py` - rozpoznawanie geolokalizacji.
+* `object_det.py` - detekcja i rozpoznawanie obiektów.
+* `pipeline.py` - plik którey realizuje pokolei usługi (przeprowadza pełną analizę) na jednym zdjęciu
 * `manage.py` - Główne narzędzie wiersza poleceń Django.
 * `requirements.txt` - Plik z zależnościami bibliotek.
 
