@@ -7,3 +7,10 @@ graph TD;
     B-->D;
     C-->D;
 ```
+```mermaid
+graph TD;
+    tutaj-->mamy;
+    mamy-->oto;
+    oto-->test;
+    tutaj-->test;
+```
