@@ -1,34 +1,41 @@
 """
 Database models for the project API application.
 
-Three primary models are defined here:
+Two primary models are defined here:
 
-* ``ImageAnalysisRequest`` — represents a single analysis job submitted by a
-  client. It owns the uploaded images and records lifecycle metadata.
+* ``ImageAnalysisRequest`` - represents a single analysis job and its associated
+  image file. It stores job lifecycle metadata as well as technical details
+  like dimensions and geolocation.
 
-* ``UploadedImage`` — represents an individual image file and its associated
-  metadata. It links a specific file to an analysis request and stores
-  technical details like dimensions and geolocation.
-
-* ``AnalysisResult`` — stores the JSON payload produced by ML workers once
+* ``AnalysisResult`` - stores the JSON payload produced by ML workers once
   processing is complete.
 """
+
 import uuid
 
 from django.db import models
 
 class ImageAnalysisRequest(models.Model):
     """
-    Represents a single image-analysis batch request submitted through the REST API.
+    Represents a single image-analysis request submitted through the REST API.
 
-    This model acts as a container for one or more images submitted together 
-    and tracks the overall lifecycle of the asynchronous processing job.
+    This model tracks the overall lifecycle of the asynchronous processing job
+    and stores the physical file reference along with metadata extracted during
+    the upload phase (e.g., EXIF data, dimensions).
 
     Attributes:
         id: UUID primary key used as the public 'task_id' in API interactions.
         status: Current state of the job (PENDING, PROCESSING, COMPLETED, FAILED).
+        file: ImageField managing the physical file storage and path generation.
+        original_filename: The name of the file as submitted by the client.
+        file_size: Size of the image file in bytes.
+        width: Image width in pixels (auto-populated by ImageField).
+        height: Image height in pixels (auto-populated by ImageField).
+        latitude: GPS latitude extracted from EXIF or provided via API.
+        longitude: GPS longitude extracted from EXIF or provided via API.
+        exif_data: Dictionary containing raw EXIF metadata tags.
         started_at: UTC timestamp when an ML worker first picked up the task.
-        completed_at: UTC timestamp when all images in the request finished processing.
+        completed_at: UTC timestamp when the image finished processing.
         created_at: UTC timestamp when the request was first persisted.
         updated_at: UTC timestamp of the last modification to the request state.
     """
@@ -53,57 +60,6 @@ class ImageAnalysisRequest(models.Model):
         default=Status.PENDING,
         db_index=True,
         help_text="Current lifecycle state of the analysis job.",
-    )
-    started_at: models.DateTimeField = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When the ML pipeline began processing this request.",
-    )
-    completed_at: models.DateTimeField = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When the ML pipeline finished or encountered a fatal error.",
-    )
-    created_at: models.DateTimeField = models.DateTimeField(auto_now_add=True)
-    updated_at: models.DateTimeField = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        """Django model metadata."""
-
-        ordering = ["-created_at"]
-        verbose_name = "Image Analysis Request"
-        verbose_name_plural = "Image Analysis Requests"
-
-    def __str__(self) -> str:
-        """Return a human-readable string representation."""
-
-        return f"AnalysisRequest({self.id}, status={self.status})"
-
-class UploadedImage(models.Model):
-    """
-    Represents an individual image file associated with an analysis request.
-
-    It stores the physical file reference and metadata extracted during the
-    upload or pre-processing phase, such as EXIF data and dimensions.
-
-    Attributes:
-        request: Foreign key to the parent ImageAnalysisRequest.
-        file: ImageField managing the physical file storage and path generation.
-        original_filename: The name of the file as submitted by the client.
-        file_size: Size of the image file in bytes.
-        width: Image width in pixels (auto-populated by ImageField).
-        height: Image height in pixels (auto-populated by ImageField).
-        latitude: GPS latitude extracted from EXIF or provided via API.
-        longitude: GPS longitude extracted from EXIF or provided via API.
-        exif_data: Dictionary containing raw EXIF metadata tags.
-        created_at: UTC timestamp when the image was uploaded.
-    """
-
-    request: models.ForeignKey = models.ForeignKey(
-        ImageAnalysisRequest,
-        on_delete=models.CASCADE,
-        related_name="uploaded_images",
-        help_text="The parent analysis request this image belongs to.",
     )
     file: models.ImageField = models.ImageField(
         upload_to="analysis_images/%Y/%m/%d/",
@@ -146,28 +102,40 @@ class UploadedImage(models.Model):
         blank=True,
         help_text="Extracted EXIF metadata in JSON format.",
     )
+    started_at: models.DateTimeField = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the ML pipeline began processing this request.",
+    )
+    completed_at: models.DateTimeField = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the ML pipeline finished or encountered a fatal error.",
+    )
     created_at: models.DateTimeField = models.DateTimeField(auto_now_add=True)
+    updated_at: models.DateTimeField = models.DateTimeField(auto_now=True)
 
     class Meta:
         """Django model metadata."""
 
-        verbose_name = "Uploaded Image"
-        verbose_name_plural = "Uploaded Images"
+        ordering = ["-created_at"]
+        verbose_name = "Image Analysis Request"
+        verbose_name_plural = "Image Analysis Requests"
 
     def __str__(self) -> str:
         """Return a human-readable string representation."""
+        return f"AnalysisRequest({self.id}, status={self.status})"
 
-        return f"UploadedImage({self.id}) for Request({self.request_id})"
 
 class AnalysisResult(models.Model):
     """
-    Stores the structured ML output for a completed analysis of a specific image.
+    Stores the structured ML output for a completed analysis request.
 
-    Has a one-to-one relationship with ``UploadedImage``. Results are typically
+    Has a one-to-one relationship with ``ImageAnalysisRequest``. Results are typically
     written once the ML pipeline has finished all inference tasks for the file.
 
     Attributes:
-        image: The specific UploadedImage this result describes.
+        request: The specific ImageAnalysisRequest this result describes.
         is_deepfake: Boolean flag for high-level deepfake classification.
         deepfake_score: Confidence probability of the deepfake detection (0.0 - 1.0).
         forensics: JSON output detailing image manipulation analysis.
@@ -179,11 +147,11 @@ class AnalysisResult(models.Model):
         created_at: UTC timestamp when the result record was created.
     """
 
-    image: models.OneToOneField = models.OneToOneField(
-        UploadedImage,
+    request: models.OneToOneField = models.OneToOneField(
+        ImageAnalysisRequest,
         on_delete=models.CASCADE,
         related_name="result",
-        help_text="The specific image this result belongs to.",
+        help_text="The specific analysis request this result belongs to.",
     )
     is_deepfake: models.BooleanField = models.BooleanField(
         default=False,
@@ -234,5 +202,4 @@ class AnalysisResult(models.Model):
 
     def __str__(self) -> str:
         """Return a human-readable string representation."""
-
-        return f"AnalysisResult(image={self.image_id}, deepfake={self.is_deepfake})"
+        return f"AnalysisResult(request={self.request_id}, deepfake={self.is_deepfake})"
