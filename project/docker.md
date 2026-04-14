@@ -114,6 +114,63 @@ docker-compose down -v
 | `docker-compose exec db psql -U postgres` | Połącz się z bazą danych PostgreSQL |
 | `docker-compose restart web` | Zrestartuj serwis web |
 
+##  Migracje Django
+
+Krótka instrukcja: jak tworzyć i stosować migracje lokalnie i w Dockerze oraz jak bezpiecznie dodać nienullowalne pola relacyjne.
+
+- **W kontenerze (zalecane)**: uruchamiaj polecenia w środowisku aplikacji, żeby uniknąć problemów z nazwą hosta `db`.
+
+```bash
+docker-compose exec web python manage.py makemigrations
+docker-compose exec web python manage.py makemigrations api    # tylko dla konkretnej aplikacji
+docker-compose exec web python manage.py migrate --noinput
+docker-compose exec web python manage.py showmigrations
+docker-compose exec web python manage.py sqlmigrate api 0002   # podejrzyj SQL dla migracji
+```
+
+- **Lokalnie (host)**: jeśli chcesz robić migracje poza kontenerem, ustaw poprawnie zmienne środowiskowe (DB_HOST=127.0.0.1 lub inny adres) i uruchom z katalogu `project`.
+
+```powershell
+#$env:DB_HOST = '127.0.0.1'   # PowerShell
+cd project
+python manage.py makemigrations
+python manage.py migrate
+python manage.py showmigrations
+```
+
+- **Dodawanie nienullowalnego pola (bez interaktywnego promptu)** — bezpieczna, 2-etapowa strategia:
+
+  1. Tymczasowo dopuść wartości NULL w modelu (np. `request = models.OneToOneField(..., null=True, blank=True, ...)`).
+  2. Uruchom `makemigrations` i `migrate` — pole zostanie dodane jako nullable.
+  3. Wykonaj backfill danych (migracja danych z RunPython, skrypt `manage.py shell` lub dedykowany management command) żeby wypełnić nowe pole dla istniejących wierszy.
+  4. Usuń `null=True, blank=True` z modelu (przywróć nienullowalność) i ponownie `makemigrations` oraz `migrate` — Django nie poprosi już o domyślną wartość.
+
+  Uwaga: jeśli w trakcie `makemigrations` zobaczysz prompt "It is impossible to add a non-nullable field... Please select an option:", wybierz **opcja 2 (Quit)** i zastosuj powyższą strategię. Opcja 1 (one-off default) przypisze jedną wartość do wszystkich istniejących wierszy i zwykle nie jest odpowiednia dla relacji FK/OneToOne.
+
+- **Backfill — szybki przykład (manage.py shell)**:
+
+```python
+from api.models import AnalysisResult, UploadedImage
+for ar in AnalysisResult.objects.all():
+    if getattr(ar, 'image_id', None):
+        ui = UploadedImage.objects.filter(pk=ar.image_id).first()
+        if ui and ui.request_id:
+            ar.request_id = ui.request_id
+            ar.save(update_fields=['request'])
+```
+
+- **Diagnostyka i przydatne polecenia**:
+
+```bash
+docker-compose exec web python manage.py showmigrations
+docker-compose exec web python manage.py migrate --plan   # pokaż plan migracji
+docker-compose exec db psql -U postgres -d postgres -c "select app, name, applied from django_migrations order by applied desc limit 20;"
+```
+
+- **Problemy z hostem `db`**: jeżeli uruchamiasz `manage.py` lokalnie i widzisz błąd "could not translate host name 'db' to address", uruchom polecenia wewnątrz kontenera (`docker-compose exec web ...`) lub ustaw `DB_HOST=127.0.0.1` i upewnij się, że kontener Postgres jest dostępny na porcie 5432.
+
+- **Commituj migracje**: zawsze dodawaj pliki migracji do repozytorium (np. `api/migrations/0002_...`) i otwórz PR — inni członkowie zespołu powinni uruchomić `migrate` po zmergowaniu.
+
 ##  Dostęp do bazy danych
 
 ### Z hosta (localhost):
