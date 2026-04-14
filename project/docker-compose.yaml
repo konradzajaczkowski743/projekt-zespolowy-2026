@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # PostgreSQL Database Service
   db:
@@ -25,26 +23,80 @@ services:
   web:
     build: .
     container_name: projekt_web
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000 --noreload"
     volumes:
       - .:/app
+      - shared_data:/app/shared
     ports:
       - "8000:8000"
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-sekretny_klucz_6_7}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,web,127.0.0.1:8000}
       - DB_NAME=${DB_NAME:-postgres}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - DB_HOST=db
       - DB_PORT=5432
+      - EXIFTOOL_API=${EXIFTOOL_API:-http://exiftool:8001}
+      - GEMMA_API=${GEMMA_API:-http://gemma:11434}
+      - MODEL_NAME=${MODEL_NAME:-gemma4:e4b}
     depends_on:
       db:
+        condition: service_healthy
+      exiftool:
+        condition: service_healthy
+      gemma:
         condition: service_healthy
     networks:
       - projekt_network
     working_dir: /app
+    restart: unless-stopped
+
+  exiftool:
+    build:
+      context: ./docker/exiftool
+      dockerfile: dockerfile
+    container_name: projekt_exiftool
+    ports:
+      - "8001:8001"
+    volumes:
+      - shared_data:/shared
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  gemma:
+    build:
+      context: ./docker/gemma4
+      dockerfile: dockerfile
+    container_name: projekt_gemma
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      MODEL_NAME: ${MODEL_NAME:-gemma4:e4b}
+    volumes:
+      - ollama_models:/root/.ollama
+      - shared_data:/shared
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit
+    # gpus: all
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q ${MODEL_NAME:-gemma4:e2b}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
 
 networks:
   projekt_network:
@@ -52,3 +104,5 @@ networks:
 
 volumes:
   postgres_data:
+  ollama_models:
+  shared_data:
