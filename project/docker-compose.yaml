@@ -38,13 +38,10 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - DB_HOST=db
       - DB_PORT=5432
-      - EXIFTOOL_API=${EXIFTOOL_API:-http://exiftool:8001}
       - GEMMA_API=${GEMMA_API:-http://gemma:11434}
       - MODEL_NAME=${MODEL_NAME:-gemma4:e4b}
     depends_on:
       db:
-        condition: service_healthy
-      exiftool:
         condition: service_healthy
       gemma:
         condition: service_healthy
@@ -52,25 +49,6 @@ services:
       - projekt_network
     working_dir: /app
     restart: unless-stopped
-
-  exiftool:
-    build:
-      context: ./docker/exiftool
-      dockerfile: dockerfile
-    container_name: projekt_exiftool
-    ports:
-      - "8001:8001"
-    volumes:
-      - shared_data:/shared
-    networks:
-      - projekt_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
   gemma:
     build:

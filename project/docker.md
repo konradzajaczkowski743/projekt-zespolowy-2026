@@ -203,7 +203,6 @@ DB_NAME=postgres
 DB_USER=postgres
 DB_PASSWORD=postgres
 MODEL_NAME=gemma4:e2b
-EXIFTOOL_API=http://exiftool:8001
 GEMMA_API=http://gemma:11434
 ```
 
