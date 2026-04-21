@@ -13,3 +13,13 @@ fastapi>=0.100,<0.101
 uvicorn>=0.34,<0.35
 pydantic>=2.10,<3.0
 python-multipart>=0.0.5,<0.1.0
+
+# ML / HuggingFace (opcjonalne — dla forensics)
+torch>=2.0,<3.0
+transformers>=4.50,<5.0
+accelerate>=1.0,<2.0
+safetensors>=0.4,<1.0
+
+# Image processing
+numpy>=1.24,<3.0
+opencv-python-headless>=4.8,<5.0

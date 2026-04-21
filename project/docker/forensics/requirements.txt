@@ -1,0 +1,15 @@
+# ML / HuggingFace
+transformers==4.51.3
+accelerate==1.6.0
+safetensors==0.5.3
+
+# Image processing
+Pillow==11.2.1
+numpy==2.2.5
+opencv-python-headless==4.11.0.86
+
+# HTTP (pobieranie zdjęć z URL)
+httpx==0.28.1
+
+# Narzędzia
+python-magic==0.4.27

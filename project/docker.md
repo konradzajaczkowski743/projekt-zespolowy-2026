@@ -46,11 +46,13 @@ jest git to możesz usunąć ten image/kontener
 
 ### 1. Uruchom kontenery
 jeśli zrobiłeś\aś wcześniejsze kroki została jedna rzecz 
-w docker-compose.yaml w gemma jest zakomentowana zmienna 
+w docker-compose.yaml w gemma oraz forensics jest zakomentowana zmienna 
 usuń aby użyć gpu
 ```bash
     # gpus: all
 ```
+w katalogu forensics jest dockerfile z ARG na cuda/cpu tylko odkomentuj cu121
+
 ```bash
 docker-compose up --build 
 ```

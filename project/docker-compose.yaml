@@ -1,5 +1,6 @@
 services:
   # PostgreSQL Database Service
+  
   db:
     image: postgres:16-alpine
     container_name: projekt_db
@@ -45,6 +46,8 @@ services:
         condition: service_healthy
       gemma:
         condition: service_healthy
+      forensics:
+        condition: service_started
     networks:
       - projekt_network
     working_dir: /app
@@ -75,6 +78,32 @@ services:
       retries: 10
       start_period: 120s
 
+  forensics:
+    build:
+      context: ./docker/forensics
+      dockerfile: dockerfile
+      args:
+        # CPU-only (domyślnie) — odkomentuj poniżej jeśli masz NVIDIA GPU:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+    container_name: projekt_forensics
+    environment:
+      TRANSFORMERS_CACHE: /models
+      HF_DATASETS_OFFLINE: "1"          # pełny offline po build
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      # Modele pobrane podczas build — persist między restartami (jak ollama_models)
+      - forensics_models:/models
+      # Mount kodu — w fazie testowej możesz edytować forensics.py bez rebuildu
+      - ./docker/forensics/forensics.py:/app/forensics.py:ro
+      - shared_data:/shared
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit:
+    # gpus: all
+    shm_size: "2gb"                      # wymagane przez PyTorch
+
 
 networks:
   projekt_network:
@@ -84,3 +113,4 @@ volumes:
   postgres_data:
   ollama_models:
   shared_data:
+  forensics_models:
