@@ -1,0 +1,8 @@
+# Auto detect text files and normalize line endings to LF
+* text=auto
+
+# Shell scripts - always LF
+*.sh text eol=lf
+dockerfile text eol=lf
+Dockerfile text eol=lf
+*.py text eol=lf
