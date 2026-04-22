@@ -23,8 +23,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # CPU-only PyTorch domyślnie — nadpisz ARG w compose jeśli masz CUDA:
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121  
-#ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu 
+#ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121  
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu 
 RUN pip install --no-cache-dir torch torchvision --index-url ${TORCH_INDEX_URL}
 RUN pip install --no-cache-dir -r requirements.txt
 

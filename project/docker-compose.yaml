@@ -40,7 +40,7 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - GEMMA_API=${GEMMA_API:-http://gemma:11434}
-      - MODEL_NAME=${MODEL_NAME:-gemma4:e4b}
+      - MODEL_NAME=${MODEL_NAME:-gemma4:e2b}
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +62,7 @@ services:
       - "11434:11434"
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
-      MODEL_NAME: ${MODEL_NAME:-gemma4:e4b}
+      MODEL_NAME: ${MODEL_NAME:-gemma4:e2b}
     volumes:
       - ollama_models:/root/.ollama
       - shared_data:/shared
@@ -84,8 +84,8 @@ services:
       dockerfile: dockerfile
       args:
         # CPU-only (domyślnie) — odkomentuj poniżej jeśli masz NVIDIA GPU:
-        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
-        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
     container_name: projekt_forensics
     environment:
       TRANSFORMERS_CACHE: /models
