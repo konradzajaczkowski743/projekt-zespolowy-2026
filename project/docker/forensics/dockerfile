@@ -23,8 +23,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # CPU-only PyTorch domyślnie — nadpisz ARG w compose jeśli masz CUDA:
-#ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121  
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu 
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121  
+#ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu 
 RUN pip install --no-cache-dir torch torchvision --index-url ${TORCH_INDEX_URL}
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -39,3 +39,8 @@ COPY forensics.py .
 ENV TRANSFORMERS_CACHE=/models \
     HF_DATASETS_OFFLINE=1 \
     PYTHONUNBUFFERED=1
+
+# ── Dummy process — kontener tylko do cachowania modeli ─────────────────────
+# Modele pobrane w `RUN python model_downloader.py` trafiają do volume /models
+# Django montuje ten volume i używa modeli bezpośrednio
+CMD ["tail", "-f", "/dev/null"]

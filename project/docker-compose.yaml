@@ -70,13 +70,13 @@ services:
       - projekt_network
     restart: unless-stopped
     # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit
-    # gpus: all
+    gpus: all
     healthcheck:
       test: ["CMD-SHELL", "ollama list | grep -q ${MODEL_NAME:-gemma4:e2b}"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 120s
+      start_period: 2400s
 
   forensics:
     build:
@@ -84,8 +84,8 @@ services:
       dockerfile: dockerfile
       args:
         # CPU-only (domyślnie) — odkomentuj poniżej jeśli masz NVIDIA GPU:
-        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
-        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
     container_name: projekt_forensics
     environment:
       TRANSFORMERS_CACHE: /models
@@ -101,7 +101,7 @@ services:
       - projekt_network
     restart: unless-stopped
     # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit:
-    # gpus: all
+    gpus: all
     shm_size: "2gb"                      # wymagane przez PyTorch
 
 
