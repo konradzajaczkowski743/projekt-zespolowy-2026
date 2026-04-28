@@ -23,7 +23,10 @@ class ForensicsResultSerializer(serializers.Serializer):
         help_text="True when the image passes all forensic checks.",
     )
     confidence_score: serializers.FloatField = serializers.FloatField(
-        help_text="Authenticity confidence in the range [0.0, 1.0].",
+        help_text=(
+            "Authenticity percentage in the range [0.0, 100.0]. "
+            "0 means the image is classified as AI-generated, 100 means it is most likely real."
+        ),
     )
     manipulation_type: serializers.CharField = serializers.CharField(
         allow_null=True,
@@ -32,9 +35,6 @@ class ForensicsResultSerializer(serializers.Serializer):
     exif_anomalies: serializers.ListField = serializers.ListField(
         child=serializers.CharField(),
         help_text="List of human-readable EXIF anomaly descriptions.",
-    )
-    noise_analysis: serializers.DictField = serializers.DictField(
-        help_text="Pixel-level noise analysis metrics.",
     )
 
 
@@ -112,20 +112,15 @@ class AnalysisRequestSerializer(serializers.Serializer):
     Input serializer for a new image analysis request.
 
     Validates the multipart/form-data payload submitted by the client.
-    At least one image file must be provided.
 
     Fields:
-        images: One or more image files (JPEG / PNG).
+        image: Image file to analyse (JPEG / PNG).
         latitude: Optional GPS latitude in decimal degrees (-90 to 90).
         longitude: Optional GPS longitude in decimal degrees (-180 to 180).
     """
 
-    images: serializers.ListField = serializers.ListField(
-        child=serializers.ImageField(),
-        allow_empty=False,
-        min_length=1,
-        max_length=20,
-        help_text="List of image files to analyse.",
+    image: serializers.ImageField = serializers.ImageField(
+        help_text="Image file to analyse.",
     )
     latitude: serializers.FloatField = serializers.FloatField(
         required=False,
@@ -142,26 +137,25 @@ class AnalysisRequestSerializer(serializers.Serializer):
         help_text="GPS longitude in decimal degrees (optional).",
     )
 
-    def validate_images(self, value: list) -> list:
+    def validate_image(self, value: serializers.ImageField) -> serializers.ImageField:
         """
-        Validate that every uploaded file has an acceptable MIME type.
+        Validate that the uploaded file has an acceptable MIME type.
 
         Args:
-            value: List of uploaded ``InMemoryUploadedFile`` objects.
+            value: Uploaded ``InMemoryUploadedFile`` object.
 
         Returns:
-            The validated list of image files.
+            The validated image file.
 
         Raises:
-            serializers.ValidationError: If any file has an unsupported type.
+            serializers.ValidationError: If the file has an unsupported type.
         """
         allowed_content_types: set[str] = {"image/jpeg", "image/png", "image/webp"}
-        for image_file in value:
-            if image_file.content_type not in allowed_content_types:
-                raise serializers.ValidationError(
-                    f"Unsupported file type '{image_file.content_type}'. "
-                    f"Allowed types: {', '.join(sorted(allowed_content_types))}."
-                )
+        if value.content_type not in allowed_content_types:
+            raise serializers.ValidationError(
+                f"Unsupported file type '{value.content_type}'. "
+                f"Allowed types: {', '.join(sorted(allowed_content_types))}."
+            )
         return value
 
 
@@ -179,30 +173,13 @@ class AnalysisResultSerializer(serializers.ModelSerializer):
     forensics = ForensicsResultSerializer(
         help_text="Image forensics analysis output.",
     )
-    geo_verification = GeoVerificationResultSerializer(
-        help_text="Geo-verification analysis output.",
-    )
-    objects_detected = DetectedObjectSerializer(
-        many=True,
-        help_text="List of objects detected in the image.",
-    )
-    alpr = ALPRResultSerializer(
-        many=True,
-        help_text="List of recognised licence plates.",
-    )
 
     class Meta:
         """Metadata for the AnalysisResultSerializer."""
 
         model = AnalysisResult
         fields = [
-            "processing_time_ms",
             "forensics",
-            "geo_verification",
-            "objects_detected",
-            "alpr",
-            "error_message",
-            "created_at",
         ]
 
 
