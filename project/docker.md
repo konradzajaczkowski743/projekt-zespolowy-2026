@@ -56,10 +56,10 @@ w katalogu forensics jest dockerfile z ARG na cuda/cpu tylko odkomentuj cu121
 `profile: teraz kontenery podzielone są na profile`
 `jeśli chcesz odpalić konkretne kontenery wstaw w (tutaj)`\
 profile:
-analysis - odpala wszystkie kontenery czyli gemma geolokalizacja forensics itp
-out - tylko gemma i forensics 
-lokacja - gemma i geo lokalizacja 
-geolock - tylko geo lokalizacja
+analysis - odpala wszystkie kontenery czyli gemma\ geolokalizacja forensics itp\
+out - tylko gemma i forensics\ 
+lokacja - gemma i geo lokalizacja\ 
+geolock - tylko geo lokalizacja\
 forensics - tylko forensics  
 ```bash
 docker-compose up --build -d
