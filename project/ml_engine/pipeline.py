@@ -74,7 +74,7 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
     pipeline_start: float = time.monotonic()
 
     try:
-        image_paths: list[str] = analysis_request.images
+        image_paths: list[str] = [analysis_request.file.path]
         latitude: float | None = analysis_request.latitude
         longitude: float | None = analysis_request.longitude
 

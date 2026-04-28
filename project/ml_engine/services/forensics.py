@@ -90,9 +90,10 @@ class ImageForensicsAnalyzer:
                 first_path = image_paths[0]
                 try:
                     result = analyze_func(first_path)
+                    authenticity_percent = round(100.0 * (1.0 - result.confidence), 2)
                     return {
                         "is_authentic": not result.is_ai_generated,
-                        "confidence_score": result.confidence,
+                        "confidence_score": authenticity_percent,
                         "manipulation_type": "ai_generated" if result.is_ai_generated else None,
                         "exif_anomalies": result.exif.suspicious_fields if result.exif else [],
                         "noise_analysis": {
@@ -153,7 +154,8 @@ class ImageForensicsAnalyzer:
             Dictionary with keys:
 
             * ``is_authentic`` (bool) — True when no tampering is detected.
-            * ``confidence_score`` (float) — Model confidence [0.0, 1.0].
+            * ``confidence_score`` (float) — Authenticity percentage [0.0, 100.0].
+              0 means AI-generated, 100 means very likely real.
             * ``manipulation_type`` (str | None) — Category of manipulation
               (e.g. ``"splicing"``, ``"copy-move"``), or ``None``.
             * ``noise_analysis`` (dict) — Pixel-level noise metrics.
@@ -162,7 +164,7 @@ class ImageForensicsAnalyzer:
 
             {
                 "is_authentic": True,
-                "confidence_score": 0.97,
+                "confidence_score": 97.0,
                 "manipulation_type": None,
                 "noise_analysis": {"ela_score": 0.03, "prnu_match": 0.94}
             }
@@ -173,11 +175,12 @@ class ImageForensicsAnalyzer:
         # TODO: Replace with real ELA + PRNU fingerprinting logic.
         return {
             "is_authentic": True,
-            "confidence_score": 0.97,
+            "confidence_score": 97.0,
             "manipulation_type": None,
             "noise_analysis": {
                 "ela_score": 0.03,
                 "prnu_match": 0.94,
+                "ai_probability": 0.03,
             },
         }
 
@@ -186,7 +189,7 @@ class ImageForensicsAnalyzer:
         logger.warning("[forensics] Fallback to mock analysis")
         return {
             "is_authentic": True,
-            "confidence_score": 0.97,
+            "confidence_score": 97.0,
             "manipulation_type": None,
             "exif_anomalies": [],
             "noise_analysis": {
