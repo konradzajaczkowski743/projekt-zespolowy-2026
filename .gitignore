@@ -10,7 +10,6 @@ venv/
 env/
 .venv/
 *.pem
-
 # IDEs / Extensions
 .idea/
 .vscode/
@@ -36,3 +35,4 @@ ehthumbs.db
 Thumbs.db
 
 # Media uploads are handled by media/photos/.gitignore
+media/
