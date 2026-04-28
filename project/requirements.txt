@@ -23,3 +23,7 @@ safetensors>=0.4,<1.0
 # Image processing
 numpy>=1.24,<3.0
 opencv-python-headless>=4.8,<5.0
+
+#pipline
+django-celery-results==2.5.*
+django-celery-beat==2.6.*

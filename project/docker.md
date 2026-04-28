@@ -53,14 +53,24 @@ usuń aby użyć gpu
 ```
 w katalogu forensics jest dockerfile z ARG na cuda/cpu tylko odkomentuj cu121
 
+`profile: teraz kontenery podzielone są na profile`
+`jeśli chcesz odpalić konkretne kontenery wstaw w (tutaj)`\
+profile:
+analysis - odpala wszystkie kontenery czyli gemma geolokalizacja forensics itp
+out - tylko gemma i forensics 
+lokacja - gemma i geo lokalizacja 
+geolock - tylko geo lokalizacja
+forensics - tylko forensics  
 ```bash
-docker-compose up --build 
+docker-compose up --build -d
+docker compose --profile (tutaj) up --build -d 
 ```
 
 ### 2. Uruchomienie w tle (detached mode)
 
 ```bash
-docker-compose up -d
+docker-compose up -d #to odpali db i web
+docker compose --profile analysis up #gemma analiza i lokacja
 ```
 
 Aby wyświetlić logi:
@@ -92,7 +102,15 @@ Odpowiedź:
   }
 }
 ```
+## geolokacja
+Użyty jest multi-stage build z osobnym etapem model-downloader. Przy pierwszym docker build wagi (~800 MB łącznie) są pobierane z HuggingFace i zapisywane do BuildKit cache — każdy kolejny docker build pomija ten krok. Ustawione TRANSFORMERS_OFFLINE=1 blokuje jakiekolwiek późniejsze próby odpytania sieci.
 
+Nominatim — uwaga operacyjna:
+Pierwszy start kontenera Nominatim importuje plik PBF z danymi OSM dla Polski (~1 GB). `Healthcheck` daje mu `300 sekund na ten import, ale na słabszym sprzęcie może to potrwać dłużej`. Dane zapisują się do volume nominatim-data, więc restart kontenera nie wymaga ponownego importu. 
+Zużycie pamięci:
+Oba modele ViT załadowane jednocześnie + CLIP to ok. 3–4 GB RAM na zimno. Stąd mem_limit: 6g w compose — zostaje bufor na batch inferencji. `Przy ograniczonym RAMie możesz zmniejszyć --concurrency=2 do 1 w CMD`.
+Singleton cache:
+loaders.py jest 1:1 z wzorcem stosowanym w module forensics
 
 ##  Zatrzymanie kontenerów
 

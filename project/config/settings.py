@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "api",
     "ml_engine",
+    "django_celery_results",
 ]
 
 MIDDLEWARE = [
