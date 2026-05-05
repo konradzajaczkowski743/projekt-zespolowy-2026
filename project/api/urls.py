@@ -14,6 +14,7 @@ from api.views import AnalysisViewSet
 # Use explicit path() definitions rather than a router so that UUID
 # path converters provide type-safe matching out of the box.
 analysis_create = AnalysisViewSet.as_view({"post": "create"})
+analysis_detail = AnalysisViewSet.as_view({"get": "retrieve"})
 
 
 @api_view(['GET'])
@@ -31,4 +32,5 @@ def api_root(request):
 urlpatterns = [
     path("", api_root, name="api-root"),
     path("analysis/", analysis_create, name="analysis-create"),
+    path("analysis/<uuid:pk>/", analysis_detail, name="analysis-detail"),
 ]

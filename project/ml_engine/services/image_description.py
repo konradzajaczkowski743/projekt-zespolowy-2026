@@ -107,11 +107,12 @@ class ImageDescriptionAnalyzer:
 
             # Prepare prompt for Gemma
             prompt = (
-                "Przeanalizuj to zdjęcie i opisz co na nim widzisz. "
-                "Podaj: 1) Krótki opis głównego obiektu/sceny, "
-                "2) Listę wszystkich widocznych obiektów, 3) Rodzaj sceny/otoczenia, "
-                "4) Ilość osób/zwierząt jeśli są obecne, 5) Warunki oświetlenia. "
-                "Bądź konkretny i przydatny."
+                "Wciel się w rolę obserwatora. Opisz jednym naturalnym, płynnym zdaniem "
+                "co widzisz na zdjęciu i gdzie myślisz, że jesteś. Na przykład: "
+                "'Widzę wieżę Eiffla, dużo osób i drzewa, więc myślę, że jestem w Paryżu we Francji.' "
+                "albo 'Nie wiem dokładnie gdzie jestem, ale rozpoznaję plażę i roślinność "
+                "typową dla Europy Południowej.' Nie używaj punktatorów, po prostu napisz "
+                "to jako swoje przemyślenie."
             )
 
             # Call Gemma API via Ollama
@@ -128,7 +129,7 @@ class ImageDescriptionAnalyzer:
                     "images": [image_data],
                     "stream": False,
                 },
-                timeout=120,
+                timeout=300,
             )
 
             response.raise_for_status()

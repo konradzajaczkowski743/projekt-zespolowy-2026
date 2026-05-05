@@ -8,6 +8,9 @@ Architecture notes:
     - The pipeline touches the database *and* the ML service layer: it updates 
       job status, calls the service classes in sequence, aggregates results,
       and persists the ``AnalysisResult`` record.
+    - Image description from Gemma is passed to the geo-verification module
+      to supplement visual location detection.
+    - Distance estimation runs after object detection and uses its results.
 """
 from __future__ import annotations
 
@@ -17,6 +20,7 @@ from typing import Any
 
 from api.models import AnalysisResult, ImageAnalysisRequest
 from ml_engine.services.alpr import ALPRAnalyzer
+from ml_engine.services.distance_estimator import DistanceEstimator
 from ml_engine.services.forensics import ImageForensicsAnalyzer
 from ml_engine.services.geolocator import GeoVerificationAnalyzer
 from ml_engine.services.image_description import ImageDescriptionAnalyzer
@@ -29,18 +33,24 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
     """
     Orchestrate the complete ML analysis pipeline for a single job.
 
-    This function is dispatched by ``AnalysisViewSet.create`` synchronously
-    immediately after the ``ImageAnalysisRequest`` record is created.
+    This function is dispatched by Celery via ``run_analysis_task``
+    after the ``ImageAnalysisRequest`` record is created.
 
     Pipeline steps (executed sequentially to share model-load overhead):
 
     1. Transition job status to ``PROCESSING``.
-    2. Run ``ImageForensicsAnalyzer.analyze_exif()`` and ``detect_tampering()``.
-    3. Run ``GeoVerificationAnalyzer.verify_location()``.
-    4. Run ``ObjectDetector.detect_objects()``.
-    5. Run ``ALPRAnalyzer.recognize_plates()``.
-    6. Persist an ``AnalysisResult`` record with all outputs.
-    7. Transition job status to ``COMPLETED``.
+    2. Run ``ImageForensicsAnalyzer.analyze()`` — EXIF + ELA + ML ensemble.
+    3. Run ``ImageDescriptionAnalyzer.describe_image()`` — Gemma4 VLM description
+       (only if image is authenticated as genuine).
+    4. Run ``GeoVerificationAnalyzer.verify_location()`` — 3-layer visual
+       geolocation (ViT + StreetCLIP + Gemma), with description as supplementary
+       input.
+    5. Run ``ObjectDetector.detect_objects()`` — RT-DETR object detection.
+    6. Run ``DistanceEstimator.estimate_distance()`` — Depth Anything V2 depth
+       map + object detection fusion.
+    7. Run ``ALPRAnalyzer.recognize_plates()`` — licence plate recognition.
+    8. Persist an ``AnalysisResult`` record with all outputs.
+    9. Transition job status to ``COMPLETED``.
 
     On any unhandled exception the job is transitioned to ``FAILED``, the
     error message is recorded, and the exception is re-raised.
@@ -86,10 +96,11 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
             image_paths=image_paths
         )
 
-        # Step 1.5 — Image description (if authentic) ------------------------
+        # Step 2 — Image description (if authentic) --------------------------
         # If the image is authenticated as genuine, generate description with Gemma
         image_description_result: dict[str, Any] = {}
         is_authentic: bool = forensics_result.get("is_authentic", False)
+        description_text: str | None = None
 
         if is_authentic:
             logger.debug(
@@ -100,10 +111,9 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
             image_description_result = description_analyzer.describe_image(
                 image_paths=image_paths
             )
+            description_text = image_description_result.get("description")
             logger.debug(
-                "task_id=%s | Image description completed: %s",
-                task_id,
-                image_description_result,
+                "task_id=%s | Image description completed", task_id
             )
         else:
             logger.debug(
@@ -111,23 +121,35 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
                 task_id,
             )
 
-        # Step 2 — Geo verification ------------------------------------------
+        # Step 3 — Geo verification ------------------------------------------
+        # Pass the Gemma description as supplementary input for location detection
         logger.debug("task_id=%s | Running GeoVerificationAnalyzer", task_id)
         geo_analyzer = GeoVerificationAnalyzer()
         geo_result: dict[str, Any] = geo_analyzer.verify_location(
             image_paths=image_paths,
             latitude=latitude,
             longitude=longitude,
+            image_description=description_text,
         )
 
-        # Step 3 — Object detection ------------------------------------------
-        logger.debug("task_id=%s | Running ObjectDetector", task_id)
+        # Step 4 — Object detection ------------------------------------------
+        logger.debug("task_id=%s | Running ObjectDetector (RT-DETR)", task_id)
         object_detector = ObjectDetector()
         objects_result: list[dict[str, Any]] = object_detector.detect_objects(
             image_paths=image_paths
         )
 
-        # Step 4 — ALPR -------------------------------------------------------
+        # Step 5 — Distance estimation ---------------------------------------
+        logger.debug("task_id=%s | Running DistanceEstimator", task_id)
+        distance_estimator = DistanceEstimator()
+        distance_result: dict[str, Any] = distance_estimator.estimate_distance(
+            image_paths=image_paths,
+            detected_objects=objects_result,
+            scene_type=geo_result.get("predicted_region"),
+            geo_verification=geo_result,
+        )
+
+        # Step 6 — ALPR -------------------------------------------------------
         logger.debug("task_id=%s | Running ALPRAnalyzer", task_id)
         alpr_analyzer = ALPRAnalyzer()
         alpr_result: list[dict[str, Any]] = alpr_analyzer.recognize_plates(
@@ -148,6 +170,7 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
                 "objects_detected": objects_result,
                 "alpr": alpr_result,
                 "image_description": image_description_result,
+                "distance_estimation": distance_result,
                 "error_message": "",
             },
         )

@@ -38,11 +38,23 @@ class ForensicsResultSerializer(serializers.Serializer):
     )
 
 
+class StreetCLIPPredictionSerializer(serializers.Serializer):
+    """Serializer for a single StreetCLIP zero-shot prediction."""
+
+    label: serializers.CharField = serializers.CharField(
+        help_text="Candidate location label.",
+    )
+    score: serializers.FloatField = serializers.FloatField(
+        help_text="Probability score for this location.",
+    )
+
+
 class GeoVerificationResultSerializer(serializers.Serializer):
     """
     Serializer for the geo-verification output section.
 
     Corresponds to the output produced by ``GeoVerificationAnalyzer``.
+    Visual prediction is always independent of supplied GPS coordinates.
     """
 
     is_location_consistent: serializers.BooleanField = serializers.BooleanField(
@@ -53,11 +65,26 @@ class GeoVerificationResultSerializer(serializers.Serializer):
     )
     predicted_region: serializers.CharField = serializers.CharField(
         allow_null=True,
-        help_text="Statistical prediction of the geographic region visible in the image.",
+        help_text="Visually predicted geographic location (landmark, city, or region).",
+    )
+    prediction_source: serializers.CharField = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Which layer made the prediction: vit_landmarks, streetclip, image_description, or gemma_vlm.",
     )
     distance_km: serializers.FloatField = serializers.FloatField(
         allow_null=True,
         help_text="Estimated distance (km) between predicted region and supplied GPS.",
+    )
+    streetclip_top5: StreetCLIPPredictionSerializer = StreetCLIPPredictionSerializer(
+        many=True,
+        required=False,
+        help_text="Top-5 StreetCLIP zero-shot predictions with scores.",
+    )
+    description_location: serializers.CharField = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Location extracted from Gemma image description (supplementary signal).",
     )
 
 
@@ -69,7 +96,7 @@ class DetectedObjectSerializer(serializers.Serializer):
     """
 
     label: serializers.CharField = serializers.CharField(
-        help_text="lass label of the detected object.",
+        help_text="Class label of the detected object.",
     )
     confidence: serializers.FloatField = serializers.FloatField(
         help_text="Detection confidence in the range [0.0, 1.0].",
@@ -133,6 +160,60 @@ class ImageDescriptionSerializer(serializers.Serializer):
     metadata: serializers.DictField = serializers.DictField(
         required=False,
         help_text="Metadata about the description generation (model used, processing time, etc).",
+    )
+
+
+class MainObjectSerializer(serializers.Serializer):
+    """Serializer for the main object within distance estimation."""
+
+    label: serializers.CharField = serializers.CharField(
+        help_text="Label of the detected main object.",
+    )
+    confidence: serializers.FloatField = serializers.FloatField(
+        help_text="Detection confidence of the main object.",
+    )
+    bounding_box: serializers.DictField = serializers.DictField(
+        help_text="Bounding box of the main object.",
+    )
+    estimated_distance_m: serializers.FloatField = serializers.FloatField(
+        allow_null=True,
+        help_text="Estimated distance to the main object in metres.",
+    )
+    depth_value: serializers.FloatField = serializers.FloatField(
+        help_text="Raw relative depth value from the depth map (0=close, 1=far).",
+    )
+
+
+class DistanceEstimationSerializer(serializers.Serializer):
+    """
+    Serializer for distance estimation output.
+
+    When ``has_main_object`` is False, the image depicts a scene without
+    a distinct main object (e.g. beach, landscape) and ``main_object``
+    will be null.
+    """
+
+    has_main_object: serializers.BooleanField = serializers.BooleanField(
+        help_text="True if a distinct main object was found in the image.",
+    )
+    main_object = MainObjectSerializer(
+        required=False,
+        allow_null=True,
+        help_text="Details about the main object and its estimated distance.",
+    )
+    reason: serializers.CharField = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Explanation when no main object is found (e.g. 'landscape_scene_no_main_object').",
+    )
+    depth_map_stats: serializers.DictField = serializers.DictField(
+        required=False,
+        allow_null=True,
+        help_text="Statistics of the depth map (min, max, mean depth values).",
+    )
+    model_used: serializers.CharField = serializers.CharField(
+        required=False,
+        help_text="Depth estimation model version used.",
     )
 
 
@@ -210,6 +291,16 @@ class AnalysisResultSerializer(serializers.ModelSerializer):
         allow_null=True,
         help_text="Detailed image description generated by Gemma LLM (only if image is authentic).",
     )
+    geo_verification = GeoVerificationResultSerializer(
+        required=False,
+        allow_null=True,
+        help_text="Geo-verification analysis output (3-layer visual recognition).",
+    )
+    distance_estimation = DistanceEstimationSerializer(
+        required=False,
+        allow_null=True,
+        help_text="Distance estimation to main object (Depth Anything V2 + RT-DETR).",
+    )
 
     class Meta:
         """Metadata for the AnalysisResultSerializer."""
@@ -218,6 +309,8 @@ class AnalysisResultSerializer(serializers.ModelSerializer):
         fields = [
             "forensics",
             "image_description",
+            "geo_verification",
+            "distance_estimation",
         ]
 
 
