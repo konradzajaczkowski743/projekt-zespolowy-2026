@@ -1,0 +1,47 @@
+FROM python:3.12-slim
+
+# ── System dependencies ───────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+        libjpeg-dev \
+        libpng-dev \
+        libwebp-dev \
+        libtiff-dev \
+        curl \
+        ca-certificates \
+        gcc \
+        g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ── Python dependencies ───────────────────────────────────────────────────────
+COPY requirements.txt .
+
+# CPU-only PyTorch domyślnie — nadpisz ARG w compose jeśli masz CUDA:
+#ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121  
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu 
+RUN pip install --no-cache-dir torch torchvision --index-url ${TORCH_INDEX_URL}
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── Environment — musi być ustawiony PRZED pobieraniem modeli ────────────────
+ENV TRANSFORMERS_CACHE=/models \
+    HF_DATASETS_OFFLINE=1 \
+    PYTHONUNBUFFERED=1
+
+# ── Pre-download modeli HuggingFace podczas BUILD (nie w runtime) ─────────────
+# Trafiają do volume /models — identyczny pattern jak ollama_models w gemma4
+COPY model_downloader.py .
+RUN python model_downloader.py
+
+# ── Kod serwisu ───────────────────────────────────────────────────────────────
+COPY forensics.py .
+
+# ── Dummy process — kontener tylko do cachowania modeli ─────────────────────
+# Modele pobrane w `RUN python model_downloader.py` trafiają do volume /models
+# Django montuje ten volume i używa modeli bezpośrednio
+CMD ["tail", "-f", "/dev/null"]

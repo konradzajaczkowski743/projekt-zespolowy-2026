@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "api",
     "ml_engine",
+    "django_celery_results",
 ]
 
 MIDDLEWARE = [
@@ -33,6 +34,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
+                "django.template.context_processors.csrf",
             ],
         },
     },

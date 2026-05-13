@@ -36,12 +36,12 @@ class AnalysisViewSet(viewsets.ViewSet):
         """
         Submit a new image-analysis job.
 
-        Validates the multipart request, saves uploaded images to the media
+        Validates the multipart request, saves the uploaded image to the media
         store, persists an ``ImageAnalysisRequest`` record, and executes
         the ML processing pipeline synchronously.
 
         Args:
-            request: DRF ``Request`` containing ``images`` file list and
+            request: DRF ``Request`` containing ``image`` file and
                 optional ``latitude`` / ``longitude`` fields.
 
         Returns:
@@ -57,20 +57,19 @@ class AnalysisViewSet(viewsets.ViewSet):
                 "result": null
             }
         """
-        serializer = AnalysisRequestSerializer(data=request.data)
-        if not serializer.is_valid():
-            logger.warning(
-                "Analysis request validation failed. errors=%s",
-                serializer.errors,
-            )
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = AnalysisRequestSerializer(data=request.data)
+            if not serializer.is_valid():
+                logger.warning(
+                    "Analysis request validation failed. errors=%s",
+                    serializer.errors,
+                )
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        validated_data: dict[str, Any] = serializer.validated_data
+            validated_data: dict[str, Any] = serializer.validated_data
 
-        task_id: uuid.UUID = uuid.uuid4()
-        image_paths: list[str] = []
-
-        for uploaded_file in validated_data["images"]:
+            task_id: uuid.UUID = uuid.uuid4()
+            uploaded_file = validated_data["image"]
             destination_path: str = os.path.join(
                 "photos", str(task_id), uploaded_file.name
             )
@@ -78,28 +77,45 @@ class AnalysisViewSet(viewsets.ViewSet):
                 destination_path,
                 ContentFile(uploaded_file.read()),
             )
-            image_paths.append(saved_path)
             logger.debug("Saved uploaded image: path=%s", saved_path)
 
-        analysis_request: ImageAnalysisRequest = ImageAnalysisRequest.objects.create(
-            id=task_id,
-            status=ImageAnalysisRequest.Status.PENDING,
-            images=image_paths,
-            latitude=validated_data.get("latitude"),
-            longitude=validated_data.get("longitude"),
-        )
-        logger.info("Created AnalysisRequest: task_id=%s", task_id)
+            analysis_request: ImageAnalysisRequest = ImageAnalysisRequest.objects.create(
+                id=task_id,
+                status=ImageAnalysisRequest.Status.PENDING,
+                file=saved_path,
+                original_filename=uploaded_file.name,
+                file_size=uploaded_file.size,
+                latitude=validated_data.get("latitude"),
+                longitude=validated_data.get("longitude"),
+            )
+            logger.info("Created AnalysisRequest: task_id=%s", task_id)
 
-        try:
-            run_full_analysis(str(task_id))
-            logger.info("Executed ML pipeline for task_id=%s", task_id)
-        except Exception as e:
-            logger.error("ML pipeline failed for task_id=%s: %s", task_id, e)
+            try:
+                run_full_analysis(str(task_id))
+                logger.info("Executed ML pipeline for task_id=%s", task_id)
+            except Exception as e:
+                logger.error("ML pipeline failed for task_id=%s: %s", task_id, e)
 
-        analysis_request.refresh_from_db()
+            analysis_request.refresh_from_db()
 
-        response_serializer = AnalysisStatusSerializer(analysis_request)
-        return Response(
-            response_serializer.data,
-            status=status.HTTP_200_OK,
-        )
+            response_serializer = AnalysisStatusSerializer(analysis_request)
+            return Response(
+                response_serializer.data,
+                status=status.HTTP_200_OK,
+            )
+        except Exception as exc:
+            logger.exception("Unhandled error in analysis create: %s", exc)
+            return Response(
+                {
+                    "error": "Internal server error",
+                    "details": str(exc),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+def analysis_ui(request: Request) -> Response:
+    """Display a simple upload page for frontend testing."""
+    from django.shortcuts import render
+
+    return render(request, "api/upload.html")

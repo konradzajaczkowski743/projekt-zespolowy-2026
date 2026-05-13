@@ -1,0 +1,173 @@
+services:
+  # ── Core: zawsze uruchamiane ──────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: projekt_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-postgres}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - projekt_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .
+    container_name: projekt_web
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000 --noreload"
+    volumes:
+      - .:/app
+      - shared_data:/app/shared
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-sekretny_klucz_6_7}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,web,127.0.0.1:8000}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - GEMMA_API=${GEMMA_API:-http://gemma:11434}
+      - MODEL_NAME=${MODEL_NAME:-gemma4:e2b}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - projekt_network
+    working_dir: /app
+    restart: unless-stopped
+
+  # ── Profil: analysis — ładowany na żądanie ────────────────
+  # Uruchom: docker compose --profile analysis up
+  gemma:
+    profiles: [analysis,out,lokacja]
+    build:
+      context: ./docker/gemma4
+      dockerfile: dockerfile
+    container_name: projekt_gemma
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      MODEL_NAME: ${MODEL_NAME:-gemma4:e2b}
+    volumes:
+      - ollama_models:/root/.ollama
+      - shared_data:/shared
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit
+    #gpus: all
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q ${MODEL_NAME:-gemma4:e2b}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 2400s
+
+  forensics:
+    profiles: [analysis,out,forensics]
+    build:
+      context: ./docker/forensics
+      dockerfile: dockerfile
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+        # Odkomentuj poniżej jeśli masz NVIDIA GPU:
+        #TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+    container_name: projekt_forensics
+    environment:
+      TRANSFORMERS_CACHE: /models
+      HF_DATASETS_OFFLINE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - forensics_models:/models
+      - ./docker/forensics/forensics.py:/app/forensics.py:ro
+      - shared_data:/shared
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit:
+    #gpus: all
+    shm_size: "2gb"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  geo:
+    profiles: [analysis,lokacja,geolock]
+    build:
+      context: ./docker/geo
+      dockerfile: dockerfile
+    container_name: projekt_geo
+    restart: unless-stopped
+    environment:
+      TRANSFORMERS_CACHE: /models
+      HF_DATASETS_OFFLINE: "1"
+      PYTHONUNBUFFERED: "1"
+      PHOTON_HOST: photon
+      PHOTON_PORT: 2322
+    depends_on:
+      photon:
+        condition: service_healthy
+    networks:
+      - projekt_network
+    mem_limit: 6g
+    shm_size: "2gb"
+    volumes:
+      - geolocation-models:/models
+      - ./docker/geo/geo_clasifiers.py:/app/geo_clasifiers.py:ro
+      - ./docker/geo/loaders.py:/app/loaders.py:ro
+      - shared_data:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  photon:
+    profiles: [analysis,lokacja,geolock]
+    image: rtuszik/photon-docker:latest
+    container_name: projekt_photon
+    restart: unless-stopped
+    environment:
+      PHOTON_COUNTRY_CODE: pl
+    volumes:
+      - photon-data:/photon/photon_data
+    ports:
+      - "2322:2322"
+    networks:
+      - projekt_network
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f 'http://localhost:2322/api?q=Warszawa&limit=1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+networks:
+  projekt_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_models:
+  shared_data:
+  forensics_models:
+  geolocation-models:
+  photon-data:

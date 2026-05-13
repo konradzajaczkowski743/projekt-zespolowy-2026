@@ -19,6 +19,7 @@ from api.models import AnalysisResult, ImageAnalysisRequest
 from ml_engine.services.alpr import ALPRAnalyzer
 from ml_engine.services.forensics import ImageForensicsAnalyzer
 from ml_engine.services.geolocator import GeoVerificationAnalyzer
+from ml_engine.services.image_description import ImageDescriptionAnalyzer
 from ml_engine.services.object_det import ObjectDetector
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
     pipeline_start: float = time.monotonic()
 
     try:
-        image_paths: list[str] = analysis_request.images
+        image_paths: list[str] = [analysis_request.file.path]
         latitude: float | None = analysis_request.latitude
         longitude: float | None = analysis_request.longitude
 
@@ -84,6 +85,31 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
         forensics_result: dict[str, Any] = forensics_analyzer.analyze(
             image_paths=image_paths
         )
+
+        # Step 1.5 — Image description (if authentic) ------------------------
+        # If the image is authenticated as genuine, generate description with Gemma
+        image_description_result: dict[str, Any] = {}
+        is_authentic: bool = forensics_result.get("is_authentic", False)
+
+        if is_authentic:
+            logger.debug(
+                "task_id=%s | Image is authentic, generating description with Gemma",
+                task_id,
+            )
+            description_analyzer = ImageDescriptionAnalyzer()
+            image_description_result = description_analyzer.describe_image(
+                image_paths=image_paths
+            )
+            logger.debug(
+                "task_id=%s | Image description completed: %s",
+                task_id,
+                image_description_result,
+            )
+        else:
+            logger.debug(
+                "task_id=%s | Image not authentic, skipping Gemma description",
+                task_id,
+            )
 
         # Step 2 — Geo verification ------------------------------------------
         logger.debug("task_id=%s | Running GeoVerificationAnalyzer", task_id)
@@ -121,6 +147,7 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
                 "geo_verification": geo_result,
                 "objects_detected": objects_result,
                 "alpr": alpr_result,
+                "image_description": image_description_result,
                 "error_message": "",
             },
         )

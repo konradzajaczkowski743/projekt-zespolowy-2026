@@ -1,0 +1,29 @@
+#  Core ML
+torch==2.3.*
+torchvision==0.18.*
+transformers==4.41.*
+huggingface_hub==0.23.*
+safetensors==0.4.*
+accelerate==0.30.*
+ 
+#  Vision 
+Pillow==10.*
+opencv-python-headless==4.9.*
+ 
+# Geokodowanie
+httpx==0.27.*
+geopy==2.4.*
+ 
+# Celery z brokerem PostgreSQL
+celery==5.4.*
+django-celery-results==2.5.*   # backend + broker via django-db:// 
+# Django 
+Django==5.0.*
+djangorestframework==3.15.*
+psycopg[binary]==3.1.*
+ 
+#Narzędzia 
+numpy==1.26.*
+pydantic==2.7.*
+python-dotenv==1.0.*
+ 

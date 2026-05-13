@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test autentyczności zdjęcia</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    label { display: block; margin-top: 16px; }
+    input, button { font-size: 1rem; padding: 8px; }
+    button { margin-top: 12px; }
+    pre { background: #f4f4f4; border: 1px solid #ddd; padding: 16px; white-space: pre-wrap; word-break: break-word; }
+    .success { color: #0a5; }
+    .error { color: #a00; }
+  </style>
+</head>
+<body>
+  <h1>Test autentyczności zdjęcia</h1>
+  <p>Wybierz obraz i wyślij do API. Otrzymasz JSON z wynikiem analizy.</p>
+  <form id="upload-form" enctype="multipart/form-data" method="post">
+    {% csrf_token %}
+    <label>
+      Zdjęcie:
+      <input type="file" name="image" accept="image/jpeg,image/png,image/webp" required>
+    </label>
+    <label>
+      Latitude (opcjonalnie):
+      <input type="number" step="any" name="latitude" placeholder="50.0619">
+    </label>
+    <label>
+      Longitude (opcjonalnie):
+      <input type="number" step="any" name="longitude" placeholder="19.9366">
+    </label>
+    <button type="submit">Wyślij do API</button>
+  </form>
+
+  <h2>Odpowiedź:</h2>
+  <pre id="response">Brak odpowiedzi</pre>
+
+  <script>
+    const form = document.getElementById('upload-form');
+    const responseEl = document.getElementById('response');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+      responseEl.textContent = 'Wysyłanie...';
+      responseEl.className = '';
+
+      try {
+        const response = await fetch('/api/v1/analysis/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrftoken,
+          },
+          body: formData,
+          credentials: 'same-origin',
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          responseEl.textContent = JSON.stringify(data, null, 2);
+          responseEl.className = response.ok ? 'success' : 'error';
+        } else {
+          const text = await response.text();
+          responseEl.textContent = `Błąd serwera ${response.status}: ${text}`;
+          responseEl.className = 'error';
+        }
+      } catch (error) {
+        responseEl.textContent = 'Błąd sieci: ' + String(error);
+        responseEl.className = 'error';
+      }
+    });
+  </script>
+</body>
+</html>
