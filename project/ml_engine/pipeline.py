@@ -96,41 +96,63 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
             image_paths=image_paths
         )
 
-        # Step 2 — Image description (if authentic) --------------------------
-        # If the image is authenticated as genuine, generate description with Gemma
+        # Step 2 — Geo verification (ViT & StreetCLIP) -----------------------
+        logger.debug("task_id=%s | Running GeoVerificationAnalyzer", task_id)
+        geo_analyzer = GeoVerificationAnalyzer()
+        geo_result: dict[str, Any] = geo_analyzer.verify_location(
+            image_paths=image_paths,
+            latitude=None,
+            longitude=None,
+        )
+
+        # Step 3 — Image description & Arbitration (if authentic) ------------
         image_description_result: dict[str, Any] = {}
         is_authentic: bool = forensics_result.get("is_authentic", False)
-        description_text: str | None = None
 
         if is_authentic:
             logger.debug(
-                "task_id=%s | Image is authentic, generating description with Gemma",
+                "task_id=%s | Image is authentic, generating description and arbitrating with Gemma",
                 task_id,
             )
             description_analyzer = ImageDescriptionAnalyzer()
-            image_description_result = description_analyzer.describe_image(
-                image_paths=image_paths
+            image_description_result = description_analyzer.describe_and_arbitrate(
+                image_paths=image_paths,
+                vit_label=geo_result.get("vit_predicted_region"),
+                streetclip_results=geo_result.get("streetclip_top5", [])
             )
-            description_text = image_description_result.get("description")
-            logger.debug(
-                "task_id=%s | Image description completed", task_id
-            )
+            
+            arbitrated_loc = image_description_result.get("arbitrated_location")
+            # Nie pozwól Gemmie nadpisać pewnego wyniku z wektorowej bazy obrazów!
+            is_vector_db_hit = geo_result.get("prediction_source") == "vector_db"
+            
+            if is_vector_db_hit:
+                # Vector DB jest najwyższym autorytetem — nadpisz arbitrację Gemmy
+                image_description_result["arbitrated_location"] = geo_result["predicted_region"]
+                logger.debug("task_id=%s | Vector DB hit — overriding Gemma arbitration to: %s", task_id, geo_result["predicted_region"])
+            elif arbitrated_loc and str(arbitrated_loc).upper() != "UNKNOWN":
+                geo_result["predicted_region"] = arbitrated_loc
+                geo_result["prediction_source"] = "gemma_arbitration"
+                geo_result["confidence_score"] = 0.90
+                logger.debug("task_id=%s | Gemma arbitrated location: %s", task_id, arbitrated_loc)
+            else:
+                logger.debug("task_id=%s | Image description completed, no arbitration override", task_id)
         else:
             logger.debug(
                 "task_id=%s | Image not authentic, skipping Gemma description",
                 task_id,
             )
 
-        # Step 3 — Geo verification ------------------------------------------
-        # Pass the Gemma description as supplementary input for location detection
-        logger.debug("task_id=%s | Running GeoVerificationAnalyzer", task_id)
-        geo_analyzer = GeoVerificationAnalyzer()
-        geo_result: dict[str, Any] = geo_analyzer.verify_location(
-            image_paths=image_paths,
-            latitude=latitude,
-            longitude=longitude,
-            image_description=description_text,
-        )
+        # Calculate GPS distance based on the final predicted_region
+        if latitude is not None and longitude is not None:
+            if geo_result.get("predicted_region"):
+                is_consistent, dist_km = geo_analyzer.calculate_distance(
+                    geo_result["predicted_region"], latitude, longitude
+                )
+                geo_result["is_location_consistent"] = is_consistent
+                geo_result["distance_km"] = dist_km
+            else:
+                geo_result["is_location_consistent"] = True
+                geo_result["distance_km"] = None
 
         # Step 4 — Object detection ------------------------------------------
         logger.debug("task_id=%s | Running ObjectDetector (RT-DETR)", task_id)

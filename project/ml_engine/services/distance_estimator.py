@@ -18,6 +18,8 @@ Model: depth-anything/Depth-Anything-V2-Base-hf (Apache 2.0 license)
 from __future__ import annotations
 
 import logging
+import json
+import difflib
 import math
 import os
 import re
@@ -38,6 +40,15 @@ except ImportError:
 
 CACHE_DIR = os.getenv("TRANSFORMERS_CACHE", "/tmp/models")
 _depth_cache: dict[str, Any] = {}
+
+# Load local landmarks DB
+_local_landmarks_db = []
+try:
+    _db_path = os.path.join(os.path.dirname(__file__), "..", "data", "polish_landmarks_db.json")
+    with open(_db_path, "r", encoding="utf-8") as f:
+        _local_landmarks_db = json.load(f)
+except Exception as e:
+    logger.warning("[distance] Failed to load local DB: %s", e)
 
 # Typical real-world sizes (height in metres) for common COCO categories.
 # Used to calibrate relative depth → absolute distance.
@@ -279,6 +290,7 @@ class DistanceEstimator:
             bbox,
             image.size,
             depth_map,
+            geo_verification,
         )
 
         result: dict[str, Any] = {
@@ -338,6 +350,12 @@ class DistanceEstimator:
         """Return True if geo-verification identified a landmark or building."""
         if not geo:
             return False
+        # Vector DB match is our most reliable source
+        if geo.get("prediction_source") == "vector_db":
+            return True
+        # If gemma arbitrated a valid location, assume it's a structural landmark/location
+        if geo.get("prediction_source") == "gemma_arbitration" and geo.get("predicted_region") != "UNKNOWN":
+            return True
         # StreetCLIP top prediction with decent confidence
         top5 = geo.get("streetclip_top5") or []
         if top5 and top5[0].get("score", 0) > 0.15:
@@ -365,11 +383,17 @@ class DistanceEstimator:
         """
         img_w, img_h = image_size
 
-        # Determine landmark name: prefer ViT for structure name ONLY if ViT was the main source
+        # Determine landmark name: prefer Vector DB, then Gemma arbitration, then ViT, then StreetCLIP
         prediction_source = geo.get("prediction_source", "")
         vit_landmark = geo.get("vit_predicted_region", "")
         
-        if prediction_source == "vit_landmarks" and vit_landmark and "landmark:" in vit_landmark.lower():
+        if prediction_source == "vector_db" and geo.get("predicted_region"):
+            landmark_name = geo.get("predicted_region")
+            confidence = geo.get("confidence_score", 0.8)
+        elif prediction_source == "gemma_arbitration" and geo.get("predicted_region") and geo.get("predicted_region") != "UNKNOWN":
+            landmark_name = geo.get("predicted_region")
+            confidence = geo.get("confidence_score", 0.9)
+        elif prediction_source == "vit_landmarks" and vit_landmark and "landmark:" in vit_landmark.lower():
             landmark_name = vit_landmark.split(":", 1)[1].strip()
             confidence = geo.get("confidence_score", 0.5)
         else:
@@ -655,6 +679,7 @@ class DistanceEstimator:
         bbox: dict[str, int],
         image_size: tuple[int, int],
         depth_map: np.ndarray,
+        geo_verification: dict[str, Any] | None = None,
     ) -> float | None:
         """
         Convert relative depth to approximate distance in metres.
@@ -670,13 +695,76 @@ class DistanceEstimator:
         base_label = label.split(" (")[0].strip()
         known_size = OBJECT_SIZES_M.get(base_label)
         
-        # If it's a landmark, ask Gemma for real height dynamically
+        # Hardcoded heights to prevent Gemma LLM hallucinations
+        KNOWN_LANDMARK_HEIGHTS_M = {
+            "sagrada familia": 172.0,
+            "eiffel tower": 330.0,
+            "wieża eiffla": 330.0,
+            "pałac kultury": 237.0,
+            "palace of culture": 237.0,
+            "zamek królewski w warszawie": 60.0,
+            "royal castle": 60.0,
+            "sukiennice": 18.0,
+            "kościół mariacki": 82.0,
+            "st. mary's basilica": 82.0,
+            "wawel": 50.0,
+            "zamek w malborku": 50.0,
+            "malbork castle": 50.0,
+            "hala stulecia": 42.0,
+            "spodek": 35.0,
+            "zamek książ": 60.0,
+            "big ben": 96.0,
+            "colosseum": 48.0,
+            "koloseum": 48.0,
+            "statue of liberty": 93.0,
+            "statua wolności": 93.0,
+            "burj khalifa": 828.0,
+            "taj mahal": 73.0,
+            "empire state building": 381.0,
+        }
+        
+        # If it's a landmark, try hardcoded list first, then ask Gemma dynamically
         if "landmark" in label.lower() or "building" in label.lower():
             if "(" in label and ")" in label:
-                landmark_name = label.split("(")[1].split(")")[0]
-                dynamic_height = self._ask_gemma_for_height(landmark_name)
-                if dynamic_height:
-                    known_size = dynamic_height
+                landmark_name = label.split("(")[1].split(")")[0].strip()
+                name_lower = landmark_name.lower()
+                
+                # Check hardcoded list
+                for key, h in KNOWN_LANDMARK_HEIGHTS_M.items():
+                    if key in name_lower:
+                        known_size = h
+                        logger.info("[distance] Used hardcoded height for %s: %sm", key, h)
+                        break
+                else:
+                    # Check local JSON DB with fuzzy matching
+                    best_match = None
+                    best_ratio = 0.0
+                    for _lm in _local_landmarks_db:
+                        if not _lm.get("name"):
+                            continue
+                        ratio = difflib.SequenceMatcher(None, name_lower, _lm["name"].lower()).ratio()
+                        if ratio > best_ratio:
+                            best_ratio = ratio
+                            best_match = _lm
+                    
+                    if best_match and best_ratio > 0.6 and best_match.get("height"):
+                        known_size = float(best_match["height"])
+                        logger.info("[distance] Used local DB height for %s (matched %s, ratio %.2f): %sm", landmark_name, best_match["name"], best_ratio, known_size)
+                    else:
+                        # Primary attempt
+                        dynamic_height = self._ask_gemma_for_height(landmark_name)
+                        
+                        # Fallback attempt using ViT base landmark name if primary fails
+                        if dynamic_height is None and geo_verification:
+                            vit_landmark = geo_verification.get("vit_predicted_region", "")
+                            if vit_landmark and "landmark:" in vit_landmark.lower():
+                                fallback_name = vit_landmark.split(":", 1)[1].strip()
+                                if fallback_name.lower() not in landmark_name.lower():
+                                    logger.info("[distance] Fallback height query using ViT name: %s", fallback_name)
+                                    dynamic_height = self._ask_gemma_for_height(fallback_name)
+                        
+                        if dynamic_height:
+                            known_size = dynamic_height
         
         if known_size is None:
             # For unknown objects, use a rough mapping:

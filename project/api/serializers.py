@@ -67,10 +67,15 @@ class GeoVerificationResultSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Visually predicted geographic location (landmark, city, or region).",
     )
+    vit_predicted_region: serializers.CharField = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="ViT model's raw landmark prediction before arbitration.",
+    )
     prediction_source: serializers.CharField = serializers.CharField(
         required=False,
         allow_null=True,
-        help_text="Which layer made the prediction: vit_landmarks, streetclip, image_description, or gemma_vlm.",
+        help_text="Which layer made the prediction: vector_db, vit_landmarks, streetclip, or gemma_arbitration.",
     )
     distance_km: serializers.FloatField = serializers.FloatField(
         allow_null=True,
@@ -156,6 +161,11 @@ class ImageDescriptionSerializer(serializers.Serializer):
         child=serializers.CharField(),
         required=False,
         help_text="List of scenes or environments identified in the image.",
+    )
+    arbitrated_location: serializers.CharField = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Final arbitrated location — reflects the most confident prediction from all models.",
     )
     metadata: serializers.DictField = serializers.DictField(
         required=False,

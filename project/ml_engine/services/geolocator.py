@@ -203,6 +203,30 @@ POLISH_LANDMARKS: list[str] = [
     "Manufaktura, Łódź",
 ]
 
+# Load dynamic landmarks from our local JSON DB
+try:
+    _db_path = os.path.join(os.path.dirname(__file__), "..", "data", "polish_landmarks_db.json")
+    with open(_db_path, "r", encoding="utf-8") as f:
+        _local_db = json.load(f)
+        for _lm in _local_db:
+            if _lm.get("name") and _lm["name"] not in POLISH_LANDMARKS:
+                POLISH_LANDMARKS.append(_lm["name"])
+    logger.info("[geolocator] Loaded %d landmarks from local DB.", len(POLISH_LANDMARKS))
+except Exception as e:
+    logger.warning("[geolocator] Failed to load polish_landmarks_db.json: %s", e)
+
+# Load vector database
+_vector_db = {}
+try:
+    if HAS_TORCH:
+        import torch
+        _vec_path = os.path.join(os.path.dirname(__file__), "..", "data", "landmark_vectors.pt")
+        if os.path.exists(_vec_path):
+            _vector_db = torch.load(_vec_path, map_location="cpu", weights_only=True)
+            logger.info("[geolocator] Loaded %d vectors from local vector DB.", len(_vector_db))
+except Exception as e:
+    logger.warning("[geolocator] Failed to load landmark_vectors.pt: %s", e)
+
 ALL_CANDIDATE_LABELS: list[str] = POLISH_LANDMARKS + POLISH_CITIES + EUROPEAN_CITIES
 
 
@@ -280,59 +304,7 @@ def _classify_with_streetclip(
     return results
 
 
-# ── Gemma VLM location extraction ───────────────────────────────────────────
 
-
-def _describe_location_with_gemma(image_path: str) -> str | None:
-    """
-    Use Gemma4 VLM to describe what location is depicted in the image.
-
-    Returns extracted location name, or None if unavailable.
-    """
-    import base64
-    import requests as http_requests
-
-    gemma_api_url = os.getenv("GEMMA_API", "http://gemma:11434")
-    model_name = os.getenv("MODEL_NAME", "gemma4:e2b")
-
-    try:
-        with open(image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-
-        prompt = (
-            "Look at this image carefully. What specific place, building, landmark, "
-            "city, or country is shown? If you can identify the exact location, "
-            "respond ONLY with the location name in this format: "
-            "'LOCATION: <city/landmark name>, <country>'. "
-            "If you cannot identify the location, respond with 'LOCATION: UNKNOWN'. "
-            "Do not add any other text."
-        )
-
-        response = http_requests.post(
-            f"{gemma_api_url}/api/generate",
-            json={
-                "model": model_name,
-                "prompt": prompt,
-                "images": [image_data],
-                "stream": False,
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        response_data = response.json()
-        generated_text = response_data.get("response", "").strip()
-
-        # Parse "LOCATION: <name>" pattern
-        match = re.search(r"LOCATION:\s*(.+)", generated_text, re.IGNORECASE)
-        if match:
-            location = match.group(1).strip()
-            if location.upper() != "UNKNOWN":
-                return location
-
-    except Exception as e:
-        logger.warning("[geolocator] Gemma location extraction failed: %s", e)
-
-    return None
 
 
 # ── Main analyser class ─────────────────────────────────────────────────────
@@ -368,7 +340,6 @@ class GeoVerificationAnalyzer:
         image_paths: list[str],
         latitude: float | None,
         longitude: float | None,
-        image_description: str | None = None,
     ) -> dict[str, Any]:
         """
         Determine the location depicted in an image and optionally compare
@@ -381,8 +352,6 @@ class GeoVerificationAnalyzer:
             image_paths: Paths to image files to analyse.
             latitude: GPS latitude from EXIF/user (comparison only).
             longitude: GPS longitude from EXIF/user (comparison only).
-            image_description: Optional description from Gemma (image_description
-                service) to supplement location detection.
 
         Returns:
             Dictionary with keys:
@@ -402,9 +371,7 @@ class GeoVerificationAnalyzer:
         )
 
         # ── Layer 1-3: Visual prediction (independent of coordinates!) ───────
-        prediction = self._predict_region_multilayer(
-            image_paths, image_description
-        )
+        prediction = self._predict_region_multilayer(image_paths)
 
         predicted_region: str | None = prediction.get("predicted_region")
         prediction_source: str = prediction.get("source", "none")
@@ -417,17 +384,7 @@ class GeoVerificationAnalyzer:
         distance_km: float | None = None
 
         if latitude is not None and longitude is not None and predicted_region:
-            coords = _geocode_via_photon(predicted_region)
-            if coords:
-                pred_lat, pred_lon = coords
-                distance_km = round(
-                    haversine_distance(latitude, longitude, pred_lat, pred_lon), 2
-                )
-                is_consistent = distance_km < 50.0
-            else:
-                # Cannot geocode the prediction — comparison inconclusive
-                distance_km = None
-                is_consistent = True  # benefit of doubt — visual is authoritative
+            is_consistent, distance_km = self.calculate_distance(predicted_region, latitude, longitude)
 
         result: dict[str, Any] = {
             "is_location_consistent": is_consistent,
@@ -445,7 +402,6 @@ class GeoVerificationAnalyzer:
     def _predict_region_multilayer(
         self,
         image_paths: list[str],
-        image_description: str | None = None,
     ) -> dict[str, Any]:
         """
         3-layer visual location prediction — runs layers sequentially,
@@ -471,8 +427,21 @@ class GeoVerificationAnalyzer:
             "description_location": None,
         }
 
-        # ── Layer 1: ViT World Landmarks ─────────────────────────────────────
+        # ── Layer 1: Vector DB (Image-to-Image) ────────────────────────────
         if HAS_TORCH:
+            vector_result = self._layer_1_5_vector_db(image)
+            if vector_result:
+                result["predicted_region"] = vector_result["label"]
+                result["source"] = "vector_db"
+                result["confidence"] = vector_result["score"]
+                logger.info(
+                    "[geolocator] Layer 1 (Vector DB) hit: %s (%.4f)",
+                    vector_result["label"],
+                    vector_result["score"],
+                )
+
+        # ── Layer 1.5: ViT World Landmarks ─────────────────────────────────────
+        if HAS_TORCH and not result["predicted_region"]:
             landmark_result = self._layer_1_vit_landmarks(image)
             if landmark_result:
                 result["predicted_region"] = landmark_result["label"]
@@ -480,16 +449,10 @@ class GeoVerificationAnalyzer:
                 result["source"] = "vit_landmarks"
                 result["confidence"] = landmark_result["score"]
                 logger.info(
-                    "[geolocator] Layer 1 (ViT) hit: %s (%.4f)",
+                    "[geolocator] Layer 1.5 (ViT) hit: %s (%.4f)",
                     landmark_result["label"],
                     landmark_result["score"],
                 )
-                # High confidence → return immediately
-                if landmark_result["score"] > 0.70:
-                    # Still run StreetCLIP for top-5 context
-                    streetclip_top5 = _classify_with_streetclip(image)
-                    result["streetclip_top5"] = streetclip_top5
-                    return result
 
         # ── Layer 2: StreetCLIP zero-shot ────────────────────────────────────
         if HAS_TORCH:
@@ -504,40 +467,19 @@ class GeoVerificationAnalyzer:
                     top_hit["score"],
                 )
                 # If StreetCLIP is confident enough, use it
-                if top_hit["score"] > 0.15:
+                if top_hit["score"] > 0.35:
                     # If Layer 1 gave a result, compare and pick best
                     if result["predicted_region"] and result["confidence"] > top_hit["score"]:
-                        pass  # keep Layer 1 result
+                        # Trust StreetCLIP for Polish landmarks if ViT wasn't highly confident (>0.70)
+                        if top_hit["label"] in POLISH_LANDMARKS:
+                            result["predicted_region"] = top_hit["label"]
+                            result["source"] = "streetclip"
+                            result["confidence"] = top_hit["score"]
+                            logger.info("[geolocator] Overriding ViT with StreetCLIP Polish landmark")
                     else:
                         result["predicted_region"] = top_hit["label"]
                         result["source"] = "streetclip"
                         result["confidence"] = top_hit["score"]
-
-        # ── Layer 2.5: Extract location from image description (if provided) ─
-        if image_description:
-            desc_location = self._extract_location_from_description(image_description)
-            if desc_location:
-                result["description_location"] = desc_location
-                logger.info(
-                    "[geolocator] Description location extracted: %s", desc_location
-                )
-                # Use as additional signal — if we don't have a prediction yet
-                if not result["predicted_region"]:
-                    result["predicted_region"] = desc_location
-                    result["source"] = "image_description"
-                    result["confidence"] = 0.5  # moderate confidence from description
-
-        # ── Layer 3: Gemma4 VLM direct location query ────────────────────────
-        if not result["predicted_region"]:
-            gemma_location = _describe_location_with_gemma(image_path)
-            if gemma_location:
-                result["predicted_region"] = gemma_location
-                result["source"] = "gemma_vlm"
-                result["confidence"] = 0.4  # lower confidence from LLM
-                result["description_location"] = gemma_location
-                logger.info(
-                    "[geolocator] Layer 3 (Gemma) location: %s", gemma_location
-                )
 
         return result
 
@@ -578,31 +520,53 @@ class GeoVerificationAnalyzer:
 
         return {"label": f"Landmark: {landmark_label}", "score": landmark_score}
 
-    @staticmethod
-    def _extract_location_from_description(description: str) -> str | None:
+    def _layer_1_5_vector_db(self, image: Image.Image) -> dict[str, Any] | None:
         """
-        Extract a location name from a Gemma-generated image description.
-
-        Looks for patterns like city names, country names, and landmark
-        references in the description text.
+        Layer 1.5: Compare image embeddings with local vector database.
         """
-        if not description:
+        if not _vector_db:
             return None
-
-        # Look for explicit location mentions in Polish or English
-        patterns = [
-            r"(?:lokalizacja|location|miasto|city|kraj|country)[:\s]+([A-ZÀ-Ża-zà-ż\s,]+)",
-            r"(?:znajduje się w|located in|is in|w mieście)\s+([A-ZÀ-Ż][a-zà-ż]+(?:\s+[A-ZÀ-Ż][a-zà-ż]+)*)",
-            r"(?:Warszaw|Krakó|Wrocław|Gdańsk|Poznań|Łódź|Szczecin|Lublin|Katowic|Rzeszó|Białystok)[a-zą-żA-ZĄ-Ż]*",
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, description, re.IGNORECASE)
-            if match:
-                location = match.group(1) if match.lastindex else match.group(0)
-                return location.strip().rstrip(",. ")
-
+            
+        bundle = _load_streetclip()
+        if bundle is None:
+            return None
+            
+        processor, model = bundle
+        device = _get_device()
+        
+        inputs = processor(images=image, return_tensors="pt")
+        if device is not None:
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            
+        with torch.no_grad():
+            image_features = model.get_image_features(**inputs)
+            image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
+            image_features = image_features.cpu().squeeze(0)
+            
+        best_label = None
+        best_score = -1.0
+        
+        # Calculate cosine similarity
+        for label, ref_vector in _vector_db.items():
+            similarity = torch.nn.functional.cosine_similarity(image_features, ref_vector, dim=0).item()
+            if similarity > best_score:
+                best_score = similarity
+                best_label = label
+                
+        # Cosine similarity threshold
+        if best_label and best_score > 0.60:
+            return {"label": best_label, "score": best_score}
+            
         return None
+
+    def calculate_distance(self, location_name: str, latitude: float, longitude: float) -> tuple[bool, float | None]:
+        """Geocode the location name and calculate distance to provided GPS coordinates."""
+        coords = _geocode_via_photon(location_name)
+        if coords:
+            pred_lat, pred_lon = coords
+            distance_km = round(haversine_distance(latitude, longitude, pred_lat, pred_lon), 2)
+            return (distance_km < 50.0), distance_km
+        return True, None
 
     def predict_region(self, image_paths: list[str]) -> str | None:
         """

@@ -1,0 +1,153 @@
+[
+  {
+    "name": "Zamek Kapituły Warmińskiej w Olsztynie",
+    "type": "castle",
+    "height": 35.0,
+    "image_filename": "Zamek_Kapituly_Olsztyn.jpg"
+  },
+  {
+    "name": "Zamek w Olsztynie (województwo śląskie)",
+    "type": "castle",
+    "height": 25.0
+  },
+  {
+    "name": "Wieża widokowa w Krynicy Morskiej",
+    "type": "observation tower",
+    "height": 27.0
+  },
+  {
+    "name": "Zamek Królewski na Wawelu",
+    "type": "castle",
+    "height": 50.0
+  },
+  {
+    "name": "Zamek w Malborku",
+    "type": "castle",
+    "height": 50.0
+  },
+  {
+    "name": "Pałac Kultury i Nauki w Warszawie",
+    "type": "palace",
+    "height": 237.0
+  },
+  {
+    "name": "Zamek Królewski w Warszawie",
+    "type": "castle",
+    "height": 60.0
+  },
+  {
+    "name": "Zamek Książ",
+    "type": "castle",
+    "height": 60.0
+  },
+  {
+    "name": "Kościół Mariacki w Krakowie",
+    "type": "church",
+    "height": 82.0
+  },
+  {
+    "name": "Hala Stulecia we Wrocławiu",
+    "type": "landmark",
+    "height": 42.0
+  },
+  {
+    "name": "Zamek w Mosznej",
+    "type": "castle",
+    "height": 30.0
+  },
+  {
+    "name": "Zamek Krzyżtopór w Ujeździe",
+    "type": "castle",
+    "height": 20.0
+  },
+  {
+    "name": "Zamek Pieskowa Skała",
+    "type": "castle",
+    "height": 25.0
+  },
+  {
+    "name": "Zamek w Niedzicy",
+    "type": "castle",
+    "height": 35.0
+  },
+  {
+    "name": "Pałac w Wilanowie",
+    "type": "palace",
+    "height": 20.0
+  },
+  {
+    "name": "Zamek Królewski w Chęcinach",
+    "type": "castle",
+    "height": 25.0
+  },
+  {
+    "name": "Zamek Ogrodzieniec",
+    "type": "castle",
+    "height": 30.0
+  },
+  {
+    "name": "Zamek w Kórniku",
+    "type": "castle",
+    "height": 20.0
+  },
+  {
+    "name": "Latarnia Morska w Kołobrzegu",
+    "type": "lighthouse",
+    "height": 26.0
+  },
+  {
+    "name": "Latarnia Morska w Świnoujściu",
+    "type": "lighthouse",
+    "height": 68.0
+  },
+  {
+    "name": "Sukiennice w Krakowie",
+    "type": "landmark",
+    "height": 18.0
+  },
+  {
+    "name": "Katedra na Wawelu",
+    "type": "church",
+    "height": 45.0
+  },
+  {
+    "name": "Bazylika w Licheniu",
+    "type": "church",
+    "height": 141.5
+  },
+  {
+    "name": "Zamek w Golubiu-Dobrzyniu",
+    "type": "castle",
+    "height": 25.0
+  },
+  {
+    "name": "Zamek w Krasiczynie",
+    "type": "castle",
+    "height": 20.0
+  },
+  {
+    "name": "Zamek Czocha",
+    "type": "castle",
+    "height": 25.0
+  },
+  {
+    "name": "Zamek w Łańcucie",
+    "type": "palace",
+    "height": 25.0
+  },
+  {
+    "name": "Wieża Ratuszowa w Krakowie",
+    "type": "tower",
+    "height": 70.0
+  },
+  {
+    "name": "Pomnik Chrystusa Króla w Świebodzinie",
+    "type": "monument",
+    "height": 36.0
+  },
+  {
+    "name": "Brama Żuraw w Gdańsku",
+    "type": "landmark",
+    "height": 31.0
+  }
+]
