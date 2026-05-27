@@ -14,6 +14,8 @@ from huggingface_hub import snapshot_download
 models = [
     "mmgyorke/vit-world-landmarks",
     "corenet-community/places365-224x224-vit-base",
+    "geolocal/StreetCLIP",
+    "depth-anything/Depth-Anything-V2-Base-hf",
 ]
 
 for repo_id in models:
@@ -32,7 +34,7 @@ EOF
 FROM python:3.12-slim AS runtime
 
 LABEL maintainer="wiktor-docker"
-LABEL description="Geolocation verification module — landmark + scene classification"
+LABEL description="Geolocation verification module — landmark + scene + StreetCLIP + depth classification"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
@@ -56,6 +58,8 @@ ENV HF_HOME=/app/models/.cache
 
 ENV MODEL_LANDMARKS_PATH=/app/models/mmgyorke__vit-world-landmarks
 ENV MODEL_PLACES365_PATH=/app/models/corenet-community__places365-224x224-vit-base
+ENV MODEL_STREETCLIP_PATH=/app/models/geolocal__StreetCLIP
+ENV MODEL_DEPTH_PATH=/app/models/depth-anything__Depth-Anything-V2-Base-hf
 
 ENV PHOTON_HOST=photon
 ENV PHOTON_PORT=2322

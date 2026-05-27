@@ -40,13 +40,61 @@ services:
       - DB_PORT=5432
       - GEMMA_API=${GEMMA_API:-http://gemma:11434}
       - MODEL_NAME=${MODEL_NAME:-gemma4:e2b}
+      - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - projekt_network
     working_dir: /app
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: projekt_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - projekt_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: .
+    container_name: projekt_worker
+    command: celery -A config worker --loglevel=info --concurrency=1
+    volumes:
+      - .:/app
+      - shared_data:/app/shared
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-sekretny_klucz_6_7}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - GEMMA_API=${GEMMA_API:-http://gemma:11434}
+      - MODEL_NAME=${MODEL_NAME:-gemma4:e2b}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - projekt_network
+    working_dir: /app
+    restart: unless-stopped
+    shm_size: "4gb"
+    mem_limit: 3g
+    cpus: "1.5"
 
   # ── Profil: analysis — ładowany na żądanie ────────────────
   # Uruchom: docker compose --profile analysis up
@@ -67,6 +115,8 @@ services:
     networks:
       - projekt_network
     restart: unless-stopped
+    mem_limit: 6g
+    cpus: "2.0"
     # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit
     #gpus: all
     healthcheck:
@@ -100,6 +150,8 @@ services:
     # Odkomentuj tylko jeśli masz NVIDIA GPU + NVIDIA Container Toolkit:
     #gpus: all
     shm_size: "2gb"
+    mem_limit: 1.5g
+    cpus: "1.0"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 30s
@@ -125,7 +177,8 @@ services:
         condition: service_healthy
     networks:
       - projekt_network
-    mem_limit: 6g
+    mem_limit: 4g
+    cpus: "1.5"
     shm_size: "2gb"
     volumes:
       - geolocation-models:/models
@@ -146,19 +199,24 @@ services:
     restart: unless-stopped
     environment:
       PHOTON_COUNTRY_CODE: pl
+      # ── Szybka wersja (Europa, ~8GB zamiast 57GB) ──
+      REGION: europe
+      # ── Pełna wersja (cała planeta, ~57GB) — zamień na: REGION: planet ──
+      DOWNLOAD_MAX_RETRIES: 10
     volumes:
       - photon-data:/photon/photon_data
     ports:
       - "2322:2322"
     networks:
       - projekt_network
-    mem_limit: 2g
+    mem_limit: 1g
+    cpus: "1.0"
     healthcheck:
       test: ["CMD-SHELL", "curl -f 'http://localhost:2322/api?q=Warszawa&limit=1' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 300s
+      start_period: 600s
 
 networks:
   projekt_network:

@@ -46,78 +46,52 @@ class ImageDescriptionAnalyzer:
             self.model_name,
         )
 
-    def describe_image(self, image_paths: list[str]) -> dict[str, Any]:
+    def describe_and_arbitrate(
+        self,
+        image_paths: list[str],
+        vit_label: str | None = None,
+        streetclip_results: list[dict] | None = None,
+    ) -> dict[str, Any]:
         """
-        Generate a detailed description of the image content using Gemma4.
-
-        This method reads the first image from the provided paths, encodes it
-        to base64, sends it to the Gemma4 model via Ollama API, and returns
-        a structured description.
-
-        Args:
-            image_paths: List of file paths to images to describe. Only the
-                first image is processed.
-
-        Returns:
-            Dictionary with structure::
-
-                {
-                    "description": "<detailed description of image content>",
-                    "confidence": <float 0.0-1.0>,
-                    "objects_identified": [<list of identified objects>],
-                    "scenes": [<list of identified scenes>],
-                    "metadata": {
-                        "model_used": "<model name>",
-                        "processing_time_ms": <milliseconds>
-                    }
-                }
-
-        Raises:
-            FileNotFoundError: If the image file cannot be found.
-            requests.RequestException: If communication with Gemma API fails.
+        Generate a description and arbitrate location using Gemma4.
         """
         if not image_paths:
-            logger.warning("ImageDescriptionAnalyzer.describe_image: no image paths provided")
+            logger.warning("ImageDescriptionAnalyzer: no image paths provided")
             return {
                 "description": "",
                 "confidence": 0.0,
                 "objects_identified": [],
                 "scenes": [],
-                "metadata": {
-                    "model_used": self.model_name,
-                    "processing_time_ms": 0,
-                    "error": "No image paths provided",
-                },
+                "arbitrated_location": None,
+                "metadata": {"model_used": self.model_name, "processing_time_ms": 0, "error": "No image paths"},
             }
 
         image_path = image_paths[0]
 
         try:
-            logger.debug(
-                "ImageDescriptionAnalyzer.describe_image: reading image=%s",
-                image_path,
-            )
-
-            # Read and encode image to base64
             if not os.path.exists(image_path):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
             with open(image_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
 
-            # Prepare prompt for Gemma
-            prompt = (
-                "Przeanalizuj to zdjęcie i opisz co na nim widzisz. "
-                "Podaj: 1) Krótki opis głównego obiektu/sceny, "
-                "2) Listę wszystkich widocznych obiektów, 3) Rodzaj sceny/otoczenia, "
-                "4) Ilość osób/zwierząt jeśli są obecne, 5) Warunki oświetlenia. "
-                "Bądź konkretny i przydatny."
-            )
+            vit_text = f"ViT: {vit_label}" if vit_label else "ViT: Brak"
+            sc_list = [h["label"] for h in (streetclip_results or [])[:3]]
+            sc_text = f"StreetCLIP: {', '.join(sc_list)}" if sc_list else "StreetCLIP: Brak"
 
-            # Call Gemma API via Ollama
-            logger.debug(
-                "ImageDescriptionAnalyzer: calling Gemma API at %s",
-                self.gemma_api_url,
+            prompt = (
+                "Jesteś zaawansowanym asystentem AI. Przeanalizuj to zdjęcie i zwróć wynik WYŁĄCZNIE w formacie JSON.\n"
+                "Mamy podpowiedzi z innych modeli AI dotyczące lokalizacji na zdjęciu:\n"
+                f"- {vit_text}\n"
+                f"- {sc_text}\n\n"
+                "Zwróć JSON o strukturze:\n"
+                "{\n"
+                '  "description": "Zwięzły, jednozdaniowy opis tego co widzisz na zdjęciu.",\n'
+                '  "objects_identified": ["obiekt1", "obiekt2"],\n'
+                '  "scenes": ["scena1", "scena2"],\n'
+                '  "arbitrated_location": "Dokładna nazwa lokalizacji (zabytek, miasto, kraj) np. Pałac Kultury i Nauki, Warszawa, Polska oparta na podpowiedziach i obrazie. Jeśli żadna podpowiedź nie pasuje, wpisz UNKNOWN."\n'
+                "}\n"
+                "Odpowiadaj WYŁĄCZNIE poprawnym obiektem JSON, żadnych komentarzy, żadnych wcięć poza JSONem."
             )
 
             response = requests.post(
@@ -128,137 +102,42 @@ class ImageDescriptionAnalyzer:
                     "images": [image_data],
                     "stream": False,
                 },
-                timeout=120,
+                timeout=300,
             )
-
             response.raise_for_status()
             response_data = response.json()
-
             generated_text = response_data.get("response", "").strip()
 
-            logger.info(
-                "ImageDescriptionAnalyzer: successfully generated description "
-                "for image=%s model=%s",
-                image_path,
-                self.model_name,
-            )
+            import json
+            import re
+            parsed = {}
+            json_match = re.search(r'\{.*\}', generated_text, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    logger.warning("ImageDescriptionAnalyzer: JSON decode failed")
 
-            # Parse the response to extract structured information
             result = {
-                "description": generated_text,
-                "confidence": 0.85,  # Gemma confidence is moderate
-                "objects_identified": self._extract_objects(generated_text),
-                "scenes": self._extract_scenes(generated_text),
+                "description": parsed.get("description", "Nie udało się wygenerować opisu."),
+                "confidence": 0.85,
+                "objects_identified": parsed.get("objects_identified", []),
+                "scenes": parsed.get("scenes", []),
+                "arbitrated_location": parsed.get("arbitrated_location"),
                 "metadata": {
                     "model_used": self.model_name,
                     "processing_time_ms": response_data.get("eval_duration", 0) // 1_000_000,
                 },
             }
-
-            logger.debug(
-                "ImageDescriptionAnalyzer.describe_image result: %s", result
-            )
             return result
 
-        except FileNotFoundError as e:
-            logger.error("ImageDescriptionAnalyzer: file not found: %s", e)
-            return {
-                "description": "",
-                "confidence": 0.0,
-                "objects_identified": [],
-                "scenes": [],
-                "metadata": {
-                    "model_used": self.model_name,
-                    "processing_time_ms": 0,
-                    "error": str(e),
-                },
-            }
-        except requests.RequestException as e:
-            logger.error(
-                "ImageDescriptionAnalyzer: Gemma API request failed: %s", e
-            )
-            return {
-                "description": "",
-                "confidence": 0.0,
-                "objects_identified": [],
-                "scenes": [],
-                "metadata": {
-                    "model_used": self.model_name,
-                    "processing_time_ms": 0,
-                    "error": f"Gemma API error: {str(e)}",
-                },
-            }
         except Exception as e:
-            logger.exception(
-                "ImageDescriptionAnalyzer.describe_image: unexpected error: %s", e
-            )
+            logger.exception("ImageDescriptionAnalyzer: unexpected error: %s", e)
             return {
                 "description": "",
                 "confidence": 0.0,
                 "objects_identified": [],
                 "scenes": [],
-                "metadata": {
-                    "model_used": self.model_name,
-                    "processing_time_ms": 0,
-                    "error": f"Unexpected error: {str(e)}",
-                },
+                "arbitrated_location": None,
+                "metadata": {"model_used": self.model_name, "processing_time_ms": 0, "error": str(e)},
             }
-
-    def _extract_objects(self, text: str) -> list[str]:
-        """
-        Extract object names from Gemma's response text.
-
-        Simple heuristic extraction - looks for common patterns in the response.
-
-        Args:
-            text: The generated description text from Gemma.
-
-        Returns:
-            List of identified objects.
-        """
-        # This is a simple extraction; in production you might use regex or NLP
-        objects = []
-        keywords = [
-            "osób", "osoba", "człowiek", "człowieka",
-            "samochód", "samochodu", "auto",
-            "pies", "psa", "kot", "kota",
-            "drzewo", "drzewa", "roślina", "roślin",
-            "budynek", "budynku", "dom", "domów",
-            "ulica", "droga", "ścieżka",
-            "niebo", "chmury", "słońce",
-        ]
-
-        text_lower = text.lower()
-        for keyword in keywords:
-            if keyword in text_lower:
-                objects.append(keyword)
-
-        return list(set(objects))  # Remove duplicates
-
-    def _extract_scenes(self, text: str) -> list[str]:
-        """
-        Extract scene types from Gemma's response text.
-
-        Simple heuristic extraction - looks for common scene patterns.
-
-        Args:
-            text: The generated description text from Gemma.
-
-        Returns:
-            List of identified scene types.
-        """
-        scenes = []
-        scene_keywords = [
-            "wewnątrz", "exterior", "zewnątrz", "na dworze",
-            "dzień", "noc", "zachód", "wschód",
-            "park", "plaża", "las", "pole", "miasto",
-            "biuro", "szkoła", "szpital", "sklep",
-            "natura", "krajobraz", "pejzaż",
-        ]
-
-        text_lower = text.lower()
-        for keyword in scene_keywords:
-            if keyword in text_lower:
-                scenes.append(keyword)
-
-        return list(set(scenes))  # Remove duplicates

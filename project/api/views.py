@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from api.models import AnalysisResult, ImageAnalysisRequest
 from api.serializers import AnalysisRequestSerializer, AnalysisStatusSerializer
-from ml_engine.pipeline import run_full_analysis
+from ml_engine.tasks import run_analysis_task
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class AnalysisViewSet(viewsets.ViewSet):
         Submit a new image-analysis job.
 
         Validates the multipart request, saves the uploaded image to the media
-        store, persists an ``ImageAnalysisRequest`` record, and executes
-        the ML processing pipeline synchronously.
+        store, persists an ``ImageAnalysisRequest`` record, and dispatches
+        the ML processing pipeline asynchronously via Celery.
 
         Args:
             request: DRF ``Request`` containing ``image`` file and
@@ -90,18 +90,14 @@ class AnalysisViewSet(viewsets.ViewSet):
             )
             logger.info("Created AnalysisRequest: task_id=%s", task_id)
 
-            try:
-                run_full_analysis(str(task_id))
-                logger.info("Executed ML pipeline for task_id=%s", task_id)
-            except Exception as e:
-                logger.error("ML pipeline failed for task_id=%s: %s", task_id, e)
-
-            analysis_request.refresh_from_db()
+            # Dispatch ML pipeline asynchronously via Celery
+            run_analysis_task.delay(str(task_id))
+            logger.info("Dispatched async ML pipeline for task_id=%s", task_id)
 
             response_serializer = AnalysisStatusSerializer(analysis_request)
             return Response(
                 response_serializer.data,
-                status=status.HTTP_200_OK,
+                status=status.HTTP_202_ACCEPTED,
             )
         except Exception as exc:
             logger.exception("Unhandled error in analysis create: %s", exc)
@@ -110,6 +106,57 @@ class AnalysisViewSet(viewsets.ViewSet):
                     "error": "Internal server error",
                     "details": str(exc),
                 },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def retrieve(self, request: Request, pk: str = None) -> Response:
+        """
+        Retrieve the status and results of a specific analysis job.
+
+        Args:
+            request: DRF Request.
+            pk: Task ID (UUID) string.
+
+        Returns:
+            If completed, returns the full JSON result.
+            Otherwise, returns the current status (e.g. {"status": "PROCESSING"}).
+        """
+        try:
+            analysis_request = ImageAnalysisRequest.objects.get(id=pk)
+            
+            # If the job is completed, fetch and return the full result payload
+            if analysis_request.status == ImageAnalysisRequest.Status.COMPLETED:
+                try:
+                    result = analysis_request.result
+                    data = {
+                        "task_id": str(analysis_request.id),
+                        "status": analysis_request.status,
+                        "forensics": result.forensics,
+                        "image_description": result.image_description,
+                        "geo_verification": result.geo_verification,
+                        "objects_detected": result.objects_detected,
+                        "distance_estimation": result.distance_estimation,
+                        "alpr": result.alpr,
+                        "processing_time_ms": result.processing_time_ms,
+                    }
+                    return Response(data, status=status.HTTP_200_OK)
+                except AnalysisResult.DoesNotExist:
+                    # In case the status is COMPLETED but result is missing
+                    pass
+            
+            # For all other statuses, return the basic status object
+            serializer = AnalysisStatusSerializer(analysis_request)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except ImageAnalysisRequest.DoesNotExist:
+            return Response(
+                {"error": "Task not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as exc:
+            logger.exception("Error retrieving analysis %s: %s", pk, exc)
+            return Response(
+                {"error": "Internal server error", "details": str(exc)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

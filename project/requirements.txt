@@ -25,5 +25,7 @@ numpy>=1.24,<3.0
 opencv-python-headless>=4.8,<5.0
 
 #pipline
+celery>=5.4,<6.0
+redis>=5.0,<6.0
 django-celery-results==2.5.*
 django-celery-beat==2.6.*
