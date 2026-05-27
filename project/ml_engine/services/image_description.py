@@ -141,3 +141,48 @@ class ImageDescriptionAnalyzer:
                 "arbitrated_location": None,
                 "metadata": {"model_used": self.model_name, "processing_time_ms": 0, "error": str(e)},
             }
+
+    def query_image_with_context(
+        self,
+        image_path: str,
+        prompt: str,
+    ) -> str:
+        """
+        Answer a user query about an image with analysis context.
+
+        Sends the image and a detailed prompt to Gemma4 to answer
+        specific questions about the analyzed image.
+
+        Args:
+            image_path: Path to the image file.
+            prompt: The user's question or custom prompt.
+
+        Returns:
+            The AI-generated response to the query.
+        """
+        try:
+            if not os.path.exists(image_path):
+                raise FileNotFoundError(f"Image file not found: {image_path}")
+
+            with open(image_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode("utf-8")
+
+            response = requests.post(
+                f"{self.gemma_api_url}/api/generate",
+                json={
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "images": [image_data],
+                    "stream": False,
+                },
+                timeout=300,
+            )
+            response.raise_for_status()
+            response_data = response.json()
+            generated_text = response_data.get("response", "").strip()
+
+            return generated_text
+
+        except Exception as e:
+            logger.exception("ImageDescriptionAnalyzer.query_image_with_context: error: %s", e)
+            return f"Błąd przy przetwarzaniu pytania: {str(e)}"

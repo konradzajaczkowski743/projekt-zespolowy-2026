@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from api.models import AnalysisResult, ImageAnalysisRequest
+from api.models import AnalysisResult, ImageAnalysisRequest, ImageQuery
 
 
 # Serializers for specific ML output fields
@@ -354,4 +354,52 @@ class AnalysisStatusSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "result",
+        ]
+
+
+class ImageQueryRequestSerializer(serializers.Serializer):
+    """
+    Input serializer for submitting a query about an analyzed image.
+
+    Fields:
+        query: The user's question about the image.
+    """
+
+    query: serializers.CharField = serializers.CharField(
+        max_length=1000,
+        help_text="User's question about the analyzed image.",
+    )
+
+
+class ImageQueryResponseSerializer(serializers.ModelSerializer):
+    """
+    Serializer for an ImageQuery response.
+
+    Used to return query status and AI response to the client.
+    """
+
+    query_id: serializers.UUIDField = serializers.UUIDField(
+        source="id",
+        read_only=True,
+        help_text="UUID identifying this query.",
+    )
+
+    class Meta:
+        """Metadata for the ImageQueryResponseSerializer."""
+
+        model = ImageQuery
+        fields = [
+            "query_id",
+            "user_query",
+            "ai_response",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "query_id",
+            "ai_response",
+            "status",
+            "created_at",
+            "updated_at",
         ]
