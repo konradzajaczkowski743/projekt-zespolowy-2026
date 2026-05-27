@@ -4,7 +4,7 @@ URL configuration for the project.
 Routes:
     POST  /api/v1/analysis/          — Submit a new image-analysis job.
     GET   /api/v1/analysis/<task_id>/ — Poll status / retrieve results.
-    POST  /api/v1/queries/create/     — Submit a new query about an image.
+    POST  /api/v1/queries/            — Submit a new query about an image.
     GET   /api/v1/queries/<query_id>/ — Get query status and response.
 """
 from django.urls import path
@@ -18,7 +18,7 @@ from api.views import AnalysisViewSet, ImageQueryViewSet
 analysis_create = AnalysisViewSet.as_view({"post": "create"})
 analysis_detail = AnalysisViewSet.as_view({"get": "retrieve"})
 
-query_create = ImageQueryViewSet.as_view({"post": "create_query"})
+query_create = ImageQueryViewSet.as_view({"post": "create"})
 query_detail = ImageQueryViewSet.as_view({"get": "retrieve"})
 
 
@@ -39,6 +39,6 @@ urlpatterns = [
     path("", api_root, name="api-root"),
     path("analysis/", analysis_create, name="analysis-create"),
     path("analysis/<uuid:pk>/", analysis_detail, name="analysis-detail"),
-    path("queries/create/", query_create, name="query-create"),
+    path("queries/", query_create, name="query-create"),
     path("queries/<uuid:pk>/", query_detail, name="query-detail"),
 ]

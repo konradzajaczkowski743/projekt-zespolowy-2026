@@ -178,21 +178,20 @@ class ImageQueryViewSet(viewsets.ViewSet):
 
     parser_classes = [JSONParser]
 
-    @action(detail=False, methods=['post'])
-    def create_query(self, request: Request) -> Response:
+    def create(self, request: Request) -> Response:
         """
         Submit a new query about an analyzed image.
 
         Args:
             request: DRF Request containing:
-                - result_id (UUID): ID of the AnalysisResult
+                - result_id (UUID): ID of the ImageAnalysisRequest (task_id)
                 - query (str): The user's question about the image
 
         Returns:
             202 Accepted response with query_id.
         """
         try:
-            # Get the result_id from the request
+            # Get the result_id from the request (this is actually the task_id)
             result_id = request.data.get('result_id')
             if not result_id:
                 return Response(
@@ -205,12 +204,18 @@ class ImageQueryViewSet(viewsets.ViewSet):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # Check if the analysis result exists
+            # Check if the analysis request exists and has a result
             try:
-                analysis_result = AnalysisResult.objects.get(id=result_id)
+                analysis_request = ImageAnalysisRequest.objects.get(id=result_id)
+                analysis_result = analysis_request.result
+            except ImageAnalysisRequest.DoesNotExist:
+                return Response(
+                    {"error": "Analysis request not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             except AnalysisResult.DoesNotExist:
                 return Response(
-                    {"error": "Analysis result not found"},
+                    {"error": "Analysis result not found - analysis may not be complete"},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
