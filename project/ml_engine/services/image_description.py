@@ -219,6 +219,22 @@ class ImageDescriptionAnalyzer:
             objects = ", ".join(analysis_result.get("objects_identified", []))
             scenes = ", ".join(analysis_result.get("scenes", []))
             location = analysis_result.get("arbitrated_location", "Nieznana")
+            detected_objects = analysis_result.get("objects_detected", []) or []
+
+            if detected_objects:
+                label_counts: dict[str, int] = {}
+                for detected in detected_objects:
+                    label = detected.get("label", "unknown")
+                    label_counts[label] = label_counts.get(label, 0) + 1
+                count_lines = "\n".join(
+                    f"- {label}: {count}" for label, count in sorted(label_counts.items())
+                )
+                object_detection_summary = (
+                    f"Detected objects: {len(detected_objects)}\n"
+                    f"{count_lines}\n"
+                )
+            else:
+                object_detection_summary = "Detected objects: brak\n"
 
             context_prompt = (
                 "Na podstawie poprzedniej analizy zdjęcia, odpowiedz na pytanie użytkownika.\n\n"
@@ -226,10 +242,14 @@ class ImageDescriptionAnalyzer:
                 f"Opis: {description}\n"
                 f"Obiekty: {objects if objects else 'brak'}\n"
                 f"Sceny: {scenes if scenes else 'brak'}\n"
-                f"Lokalizacja: {location}\n\n"
+                f"Lokalizacja: {location}\n"
+                "=== DETEKTOWANE OBIEKTY ===\n"
+                f"{object_detection_summary}\n"
                 "=== PYTANIE UŻYTKOWNIKA ===\n"
                 f"{user_prompt}\n\n"
-                "Odpowiedz zwięźle i precyzyjnie, bazując na powyższej analizie."
+                "Odpowiedz zwięźle i precyzyjnie, bazując na powyższej analizie.\n"
+                "Jeżeli pytanie dotyczy liczby obiektów, podaj dokładną liczbę na podstawie wykrytych obiektów.\n"
+                "Nie dodawaj informacji wykraczających poza te dane i nie sugeruj się domniemaną wielokrotnością."
             )
 
             logger.debug(f"Querying Gemma with analysis context (no image)")

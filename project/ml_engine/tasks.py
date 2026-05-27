@@ -86,7 +86,13 @@ def process_image_query_task(self, query_id: str) -> dict:
         
         # Use ONLY the previous analysis results, not the image
         # This avoids reprocessing the image and causing OOM errors in Gemma
-        analysis_data = result.image_description or {}
+        analysis_data = {
+            "description": result.image_description.get("description", "") if result.image_description else "",
+            "objects_identified": result.image_description.get("objects_identified", []) if result.image_description else [],
+            "scenes": result.image_description.get("scenes", []) if result.image_description else [],
+            "arbitrated_location": result.image_description.get("arbitrated_location") if result.image_description else None,
+            "objects_detected": result.objects_detected or [],
+        }
         
         logger.debug(
             "Processing query_id=%s with analysis context (no image reprocessing)",
