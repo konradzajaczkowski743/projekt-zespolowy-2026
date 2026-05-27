@@ -78,34 +78,26 @@ def process_image_query_task(self, query_id: str) -> dict:
     try:
         query = ImageQuery.objects.get(id=query_id)
         
-        # Get the analysis result and image path
+        # Get the analysis result
         result = query.result
-        image_path = result.request.file.path
         
         # Initialize the image description analyzer
         analyzer = ImageDescriptionAnalyzer()
         
-        # Get analysis context for better responses
-        analysis_context = {
-            "forensics": result.forensics,
-            "geo_verification": result.geo_verification,
-            "objects_detected": result.objects_detected,
-            "distance_estimation": result.distance_estimation,
-            "image_description": result.image_description,
-        }
+        # Use ONLY the previous analysis results, not the image
+        # This avoids reprocessing the image and causing OOM errors in Gemma
+        analysis_data = result.image_description or {}
         
-        # Call Gemma LLM with the query and analysis context
-        prompt = (
-            "Jesteś asystentem AI pomagającym użytkownikom zrozumieć wyniki analizy zdjęcia.\n"
-            "Użytkownik zadał następujące pytanie dotyczące analizy obrazu:\n"
-            f"Pytanie: {query.user_query}\n\n"
-            "Masz dostęp do wyników analizy:\n"
-            f"Kontekst analizy: {analysis_context}\n\n"
-            "Odpowiedz na pytanie użytkownika w jasny, zrozumiały sposób na podstawie dostępnych danych.\n"
-            "Jeśli nie masz informacji, aby odpowiedzieć na pytanie, wyjaśnij, dlaczego."
+        logger.debug(
+            "Processing query_id=%s with analysis context (no image reprocessing)",
+            query_id
         )
         
-        response = analyzer.query_image_with_context(image_path, prompt)
+        # Call Gemma LLM with the query and analysis context ONLY
+        response = analyzer.query_with_analysis_context(
+            analysis_result=analysis_data,
+            user_prompt=query.user_query,
+        )
         
         # Store the response
         query.ai_response = response

@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import time
 from typing import Any
 
 import requests
@@ -185,4 +186,108 @@ class ImageDescriptionAnalyzer:
 
         except Exception as e:
             logger.exception("ImageDescriptionAnalyzer.query_image_with_context: error: %s", e)
+            return f"Błąd przy przetwarzaniu pytania: {str(e)}"
+
+    def query_with_analysis_context(
+        self,
+        analysis_result: dict[str, Any],
+        user_prompt: str,
+        max_retries: int = 3,
+    ) -> str:
+        """
+        Answer a user query using ONLY previous analysis results (no image).
+
+        This method is optimized for follow-up queries after the initial analysis.
+        It works with the textual analysis results to avoid reprocessing the image
+        and causing OOM errors in Gemma.
+
+        Args:
+            analysis_result: Dictionary from describe_and_arbitrate() containing:
+                - description: Image description
+                - objects_identified: List of detected objects
+                - scenes: List of detected scenes
+                - arbitrated_location: Identified location
+            user_prompt: The user's follow-up question.
+            max_retries: Number of retry attempts on server errors.
+
+        Returns:
+            The AI-generated response to the query.
+        """
+        try:
+            # Build context from previous analysis
+            description = analysis_result.get("description", "Brak opisu")
+            objects = ", ".join(analysis_result.get("objects_identified", []))
+            scenes = ", ".join(analysis_result.get("scenes", []))
+            location = analysis_result.get("arbitrated_location", "Nieznana")
+
+            context_prompt = (
+                "Na podstawie poprzedniej analizy zdjęcia, odpowiedz na pytanie użytkownika.\n\n"
+                "=== POPRZEDNIA ANALIZA ===\n"
+                f"Opis: {description}\n"
+                f"Obiekty: {objects if objects else 'brak'}\n"
+                f"Sceny: {scenes if scenes else 'brak'}\n"
+                f"Lokalizacja: {location}\n\n"
+                "=== PYTANIE UŻYTKOWNIKA ===\n"
+                f"{user_prompt}\n\n"
+                "Odpowiedz zwięźle i precyzyjnie, bazując na powyższej analizie."
+            )
+
+            logger.debug(f"Querying Gemma with analysis context (no image)")
+
+            # Retry logic for temporary failures
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(
+                        f"{self.gemma_api_url}/api/generate",
+                        json={
+                            "model": self.model_name,
+                            "prompt": context_prompt,
+                            "stream": False,
+                        },
+                        timeout=300,
+                    )
+
+                    if response.status_code == 500:
+                        logger.warning(
+                            f"Attempt {attempt + 1}/{max_retries}: Gemma returned 500, retrying..."
+                        )
+                        if attempt < max_retries - 1:
+                            time.sleep(2 ** attempt)  # Exponential backoff
+                            continue
+                        else:
+                            return "Błąd serwera Gemma. Spróbuj ponownie za chwilę."
+
+                    response.raise_for_status()
+                    response_data = response.json()
+                    generated_text = response_data.get("response", "").strip()
+
+                    logger.debug("Gemma query completed successfully")
+                    return generated_text
+
+                except requests.exceptions.Timeout:
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries}: Timeout, retrying..."
+                    )
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return "Timeout. Spróbuj ponownie za chwilę."
+
+                except requests.exceptions.ConnectionError as e:
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries}: Connection error: {e}"
+                    )
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return f"Błąd połączenia: {str(e)}"
+
+            return "Nie udało się połączyć z Gemmą po kilku próbach."
+
+        except Exception as e:
+            logger.exception(
+                "ImageDescriptionAnalyzer.query_with_analysis_context: error: %s", e
+            )
             return f"Błąd przy przetwarzaniu pytania: {str(e)}"
