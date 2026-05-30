@@ -243,7 +243,15 @@ class AnalysisRequestSerializer(serializers.Serializer):
     """
 
     image: serializers.ImageField = serializers.ImageField(
+        required=False,
+        allow_null=True,
         help_text="Image file to analyse.",
+    )
+    image_url: serializers.URLField = serializers.URLField(
+        required=False,
+        allow_null=True,
+        allow_blank=False,
+        help_text="Image URL to download and analyse.",
     )
     latitude: serializers.FloatField = serializers.FloatField(
         required=False,
@@ -280,6 +288,29 @@ class AnalysisRequestSerializer(serializers.Serializer):
                 f"Allowed types: {', '.join(sorted(allowed_content_types))}."
             )
         return value
+
+    def validate_image_url(self, value: str) -> str:
+        if not value.lower().startswith(("http://", "https://")):
+            raise serializers.ValidationError(
+                "URL must start with http:// or https://"
+            )
+        return value
+
+    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
+        image = data.get("image")
+        image_url = data.get("image_url")
+
+        if image and image_url:
+            raise serializers.ValidationError(
+                "Provide either an image file or an image URL, not both."
+            )
+
+        if not image and not image_url:
+            raise serializers.ValidationError(
+                "Upload an image file or provide an image URL to analyse."
+            )
+
+        return data
 
 
 # Output serializers

@@ -217,6 +217,27 @@
       display: none;
     }
 
+    .upload-url-input {
+      width: 100%;
+      max-width: 480px;
+      margin: 16px 0 0 0;
+      padding: 14px 18px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      font-family: 'Orbitron', monospace;
+      font-size: 1rem;
+      outline: none;
+      box-shadow: inset 0 0 18px rgba(0, 255, 255, 0.12);
+      transition: border-color 0.25s ease, background 0.25s ease;
+    }
+
+    .upload-url-input:focus {
+      border-color: #00ffff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
     .upload-btn {
       background: linear-gradient(135deg, #00ffff, #ff00ff);
       color: #000;
@@ -651,8 +672,9 @@
 
     <div class="upload-area" id="uploadArea">
       <div class="upload-icon">📸</div>
-      <p>Przeciągnij i upuść zdjęcie tutaj lub kliknij aby wybrać</p>
-      <input type="file" id="fileInput" class="file-input" accept="image/jpeg,image/png,image/webp" required>
+      <p>Przeciągnij i upuść zdjęcie tutaj lub kliknij aby wybrać albo wklej URL obrazu</p>
+      <input type="file" id="fileInput" class="file-input" accept="image/jpeg,image/png,image/webp">
+      <input type="url" id="urlInput" class="upload-url-input" placeholder="Wklej URL obrazu tutaj" />
       {% csrf_token %}
       <button type="button" class="upload-btn" onclick="document.getElementById('fileInput').click()">
         Wybierz zdjęcie
@@ -714,6 +736,7 @@
 
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
+    const urlInput = document.getElementById('urlInput');
     const fileName = document.getElementById('fileName');
     const progressContainer = document.getElementById('progressContainer');
     const progressFill = document.getElementById('progressFill');
@@ -725,6 +748,7 @@
     let pollingInterval = null;
     let progressInterval = null;
     let selectedFile = null;
+    let selectedUrl = null;
     let lastResponseData = null;
 
     // Function to add logs to terminal
@@ -737,16 +761,21 @@
       terminalLogs.style.display = 'block';
     }
 
-    function setPreviewImage(file) {
+    function setPreviewImage(fileOrUrl) {
       const preview = document.getElementById('responsePreview');
       const previewImage = document.getElementById('uploadedPreview');
-      if (!file) {
+      if (!fileOrUrl) {
         preview.style.display = 'none';
         previewImage.src = '';
         return;
       }
-      previewImage.src = URL.createObjectURL(file);
-      previewImage.onload = () => URL.revokeObjectURL(previewImage.src);
+
+      if (typeof fileOrUrl === 'string') {
+        previewImage.src = fileOrUrl;
+      } else {
+        previewImage.src = URL.createObjectURL(fileOrUrl);
+        previewImage.onload = () => URL.revokeObjectURL(previewImage.src);
+      }
       preview.style.display = 'flex';
     }
 
@@ -848,16 +877,33 @@
       handleFiles(this.files);
     });
 
+    urlInput.addEventListener('input', function() {
+      handleUrlInput(this.value.trim());
+    });
+
     function handleFiles(files) {
       if (files.length > 0) {
         const file = files[0];
         if (file.type.startsWith('image/')) {
           selectedFile = file;
+          selectedUrl = null;
+          urlInput.value = '';
           fileName.textContent = `📁 ${file.name}`;
           fileName.style.display = 'block';
           uploadArea.querySelector('p').textContent = 'Świetnie! Kliknij "Wyślij do analizy"';
           createAnalysisButton();
         }
+      }
+    }
+
+    function handleUrlInput(url) {
+      selectedUrl = url || null;
+      if (selectedUrl) {
+        selectedFile = null;
+        fileInput.value = '';
+        fileName.style.display = 'none';
+        uploadArea.querySelector('p').textContent = 'Świetnie! Kliknij "Wyślij do analizy"';
+        createAnalysisButton();
       }
     }
 
@@ -896,15 +942,21 @@
 
     function submitForm() {
       const fileToSend = selectedFile || fileInput.files[0];
-      if (!fileToSend) {
-        addLog('Brak pliku do wysłania.', 'failed');
+      const imageUrl = selectedUrl || urlInput.value.trim();
+
+      if (!fileToSend && !imageUrl) {
+        addLog('Brak pliku lub URL do wysłania.', 'failed');
         return;
       }
 
-      setPreviewImage(fileToSend);
-
       const formData = new FormData();
-      formData.append('image', fileToSend);
+      if (fileToSend) {
+        setPreviewImage(fileToSend);
+        formData.append('image', fileToSend);
+      } else {
+        setPreviewImage(imageUrl);
+        formData.append('image_url', imageUrl);
+      }
       formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
       startAnalysis(formData);

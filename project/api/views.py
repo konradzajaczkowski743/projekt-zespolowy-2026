@@ -4,7 +4,11 @@ REST API views for the project.
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
+import urllib.parse
+from urllib.error import HTTPError, URLError
+from urllib.request import Request as UrlRequest, urlopen
 import uuid
 from typing import Any
 
@@ -69,7 +73,35 @@ class AnalysisViewSet(viewsets.ViewSet):
             validated_data: dict[str, Any] = serializer.validated_data
 
             task_id: uuid.UUID = uuid.uuid4()
-            uploaded_file = validated_data["image"]
+            uploaded_file = validated_data.get("image")
+            file_size = None
+
+            if validated_data.get("image_url"):
+                image_url = validated_data["image_url"]
+                try:
+                    request_obj = UrlRequest(
+                        image_url,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    with urlopen(request_obj, timeout=15) as response:
+                        content_type = response.headers.get("Content-Type", "")
+                        if not content_type.startswith("image/"):
+                            raise ValueError("URL did not return an image content type.")
+                        image_bytes = response.read()
+                except (HTTPError, URLError, ValueError) as exc:
+                    logger.warning("Failed to download image from URL %s: %s", image_url, exc)
+                    return Response(
+                        {"image_url": ["Nie można pobrać obrazu z podanego URL."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                file_name = os.path.basename(urllib.parse.urlparse(image_url).path) or "downloaded_image"
+                if not os.path.splitext(file_name)[1]:
+                    extension = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ".jpg"
+                    file_name += extension
+                uploaded_file = ContentFile(image_bytes, name=file_name)
+                file_size = len(image_bytes)
+
             destination_path: str = os.path.join(
                 "photos", str(task_id), uploaded_file.name
             )
@@ -84,7 +116,7 @@ class AnalysisViewSet(viewsets.ViewSet):
                 status=ImageAnalysisRequest.Status.PENDING,
                 file=saved_path,
                 original_filename=uploaded_file.name,
-                file_size=uploaded_file.size,
+                file_size=file_size if file_size is not None else uploaded_file.size,
                 latitude=validated_data.get("latitude"),
                 longitude=validated_data.get("longitude"),
             )
