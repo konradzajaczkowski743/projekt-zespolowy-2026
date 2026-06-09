@@ -220,6 +220,7 @@ class ImageDescriptionAnalyzer:
             scenes = ", ".join(analysis_result.get("scenes", []))
             location = analysis_result.get("arbitrated_location", "Nieznana")
             detected_objects = analysis_result.get("objects_detected", []) or []
+            alpr_results = analysis_result.get("alpr", []) or []
 
             if detected_objects:
                 label_counts: dict[str, int] = {}
@@ -245,10 +246,13 @@ class ImageDescriptionAnalyzer:
                 f"Lokalizacja: {location}\n"
                 "=== DETEKTOWANE OBIEKTY ===\n"
                 f"{object_detection_summary}\n"
+                "=== ALPR (TABLICE REJESTRACYJNE) ===\n"
+                f"{(', '.join([a.get('plate_text','') for a in alpr_results]) if alpr_results else 'brak')}\n"
                 "=== PYTANIE UŻYTKOWNIKA ===\n"
                 f"{user_prompt}\n\n"
                 "Odpowiedz zwięźle i precyzyjnie, bazując na powyższej analizie.\n"
                 "Jeżeli pytanie dotyczy liczby obiektów, podaj dokładną liczbę na podstawie wykrytych obiektów.\n"
+                "Jeżeli pytanie dotyczy tablic rejestracyjnych, odnieś się do sekcji ALPR powyżej.\n"
                 "Nie dodawaj informacji wykraczających poza te dane i nie sugeruj się domniemaną wielokrotnością."
             )
 

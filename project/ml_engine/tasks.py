@@ -72,44 +72,113 @@ def process_image_query_task(self, query_id: str) -> dict:
     """
     from api.models import ImageQuery
     from ml_engine.services.image_description import ImageDescriptionAnalyzer
+    from ml_engine.services.alpr import ALPRAnalyzer
+    from ml_engine.services.object_det import ObjectDetector
 
     logger.info("Celery task started: process_image_query_task query_id=%s", query_id)
 
     try:
         query = ImageQuery.objects.get(id=query_id)
-        
-        # Get the analysis result
+
+        # Get the analysis result and the image path
         result = query.result
-        
-        # Initialize the image description analyzer
+        image_path = result.request.file.path if result and result.request and result.request.file else None
+
+        # Initialize analyzers
         analyzer = ImageDescriptionAnalyzer()
-        
-        # Use ONLY the previous analysis results, not the image
-        # This avoids reprocessing the image and causing OOM errors in Gemma
+        alpr_analyzer = ALPRAnalyzer()
+        object_detector = ObjectDetector()
+
+        # Use ONLY the previous analysis results by default
         analysis_data = {
             "description": result.image_description.get("description", "") if result.image_description else "",
             "objects_identified": result.image_description.get("objects_identified", []) if result.image_description else [],
             "scenes": result.image_description.get("scenes", []) if result.image_description else [],
             "arbitrated_location": result.image_description.get("arbitrated_location") if result.image_description else None,
             "objects_detected": result.objects_detected or [],
+            "alpr": result.alpr or [],
         }
-        
+
         logger.debug(
-            "Processing query_id=%s with analysis context (no image reprocessing)",
-            query_id
+            "Processing query_id=%s with analysis context (no image reprocessing by default)",
+            query_id,
         )
-        
-        # Call Gemma LLM with the query and analysis context ONLY
+
+        # If the user explicitly asks about licence plates and ALPR is missing,
+        # run a targeted ALPR pass and persist the results before answering.
+        lower_q = (query.user_query or "").lower()
+        try:
+            if image_path and any(k in lower_q for k in ("tablic", "tablica", "rejestr", "nr ", "nr.", "numer")) and not analysis_data.get("alpr"):
+                logger.debug("Query requests ALPR but previous result empty — running ALPRAnalyzer")
+                alpr_result = alpr_analyzer.recognize_plates([image_path])
+                # persist to DB
+                result.alpr = alpr_result
+                result.save(update_fields=["alpr"])  # AnalysisResult has alpr field
+                analysis_data["alpr"] = alpr_result
+
+            # If the user asks about counts/number of objects and objects_detected is empty,
+            # run object detection targeted pass and persist.
+            if image_path and ("ile" in lower_q or "liczb" in lower_q or "ile jest" in lower_q or "how many" in lower_q) and not analysis_data.get("objects_detected"):
+                logger.debug("Query requests object counts but previous objects_detected empty — running ObjectDetector")
+                objects_result = object_detector.detect_objects([image_path])
+                result.objects_detected = objects_result
+                result.save(update_fields=["objects_detected"])
+                analysis_data["objects_detected"] = objects_result
+        except Exception as e:
+            logger.exception("Error during targeted re-analysis for query_id=%s: %s", query_id, e)
+
+        def response_indicates_unknown(text: str) -> bool:
+            if not text:
+                return True
+            text_lower = text.lower()
+            return any(
+                phrase in text_lower
+                for phrase in (
+                    "nie jest możliwe",
+                    "nie można określić",
+                    "na podstawie poprzedniej analizy",
+                    "nie mogę określić",
+                    "nie udało się określić",
+                    "brak informacji",
+                )
+            )
+
+        # Call Gemma LLM with the (possibly updated) analysis context
         response = analyzer.query_with_analysis_context(
             analysis_result=analysis_data,
             user_prompt=query.user_query,
         )
-        
+
+        # If the analysis-only response is insufficient, ask directly from the image.
+        if image_path and response_indicates_unknown(response):
+            logger.info(
+                "Query_id=%s: context answer insufficient, retrying with image fallback",
+                query_id,
+            )
+            fallback_prompt = (
+                "Masz dostęp do obrazka oraz wyniki wcześniejszej analizy. "
+                "Odpowiedz na pytanie użytkownika bazując na obrazie. "
+                "Jeżeli poprzednia analiza nie wystarcza, użyj obrazu, by znaleźć odpowiedź.\n\n"
+                f"Opis: {analysis_data.get('description', 'brak')}\n"
+                f"Obiekty: {', '.join(analysis_data.get('objects_identified', []) or []) or 'brak'}\n"
+                f"Lokalizacja: {analysis_data.get('arbitrated_location') or 'brak'}\n"
+                f"ALPR: {', '.join([a.get('plate_text','') for a in analysis_data.get('alpr', [])]) or 'brak'}\n\n"
+                f"Pytanie użytkownika: {query.user_query}\n\n"
+                "Odpowiedz konkretnie i tylko na podstawie obrazu lub dostępnych wyników.")
+            try:
+                response = analyzer.query_image_with_context(image_path, fallback_prompt)
+            except Exception as e:
+                logger.exception(
+                    "Image fallback query failed for query_id=%s: %s",
+                    query_id,
+                    e,
+                )
+
         # Store the response
         query.ai_response = response
         query.status = ImageQuery.Status.COMPLETED
         query.save(update_fields=["ai_response", "status", "updated_at"])
-        
+
         logger.info("Celery task completed: query_id=%s", query_id)
         return {"query_id": str(query_id), "response": response}
         
