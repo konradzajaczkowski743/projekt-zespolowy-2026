@@ -466,20 +466,17 @@ class GeoVerificationAnalyzer:
                     top_hit["label"],
                     top_hit["score"],
                 )
-                # If StreetCLIP is confident enough, use it
-                if top_hit["score"] > 0.35:
-                    # If Layer 1 gave a result, compare and pick best
-                    if result["predicted_region"] and result["confidence"] > top_hit["score"]:
-                        # Trust StreetCLIP for Polish landmarks if ViT wasn't highly confident (>0.70)
-                        if top_hit["label"] in POLISH_LANDMARKS:
-                            result["predicted_region"] = top_hit["label"]
-                            result["source"] = "streetclip"
-                            result["confidence"] = top_hit["score"]
-                            logger.info("[geolocator] Overriding ViT with StreetCLIP Polish landmark")
-                    else:
-                        result["predicted_region"] = top_hit["label"]
-                        result["source"] = "streetclip"
-                        result["confidence"] = top_hit["score"]
+                
+                # Używamy StreetCLIP tylko wtedy, gdy:
+                # 1. Posiada on wystarczającą pewność (> 0.35)
+                # 2. Wyższe warstwy (Vector DB / ViT) NIE znalazły dopasowania.
+                # Jest to tzw. "Strict Waterfall", który zapobiega nadpisywaniu wyników 
+                # przez niewłaściwe porównania Cosine vs Softmax.
+                if top_hit["score"] > 0.35 and not result["predicted_region"]:
+                    result["predicted_region"] = top_hit["label"]
+                    result["source"] = "streetclip"
+                    result["confidence"] = top_hit["score"]
+                    logger.info("[geolocator] StreetCLIP adopted as final prediction.")
 
         return result
 
@@ -548,13 +545,17 @@ class GeoVerificationAnalyzer:
         
         # Calculate cosine similarity
         for label, ref_vector in _vector_db.items():
-            similarity = torch.nn.functional.cosine_similarity(image_features, ref_vector, dim=0).item()
+            # ref_vector ma kształt (N, 512), image_features (512,)
+            similarities = torch.nn.functional.cosine_similarity(image_features, ref_vector, dim=-1)
+            # Wybieramy największe podobieństwo spośród wszystkich zdjęć referencyjnych tego zamku
+            similarity = torch.max(similarities).item()
+            
             if similarity > best_score:
                 best_score = similarity
                 best_label = label
                 
-        # Cosine similarity threshold
-        if best_label and best_score > 0.60:
+        # Cosine similarity threshold 
+        if best_label and best_score > 0.82:
             return {"label": best_label, "score": best_score}
             
         return None

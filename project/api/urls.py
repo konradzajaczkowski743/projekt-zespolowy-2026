@@ -15,6 +15,7 @@ from api.views import AnalysisViewSet
 # path converters provide type-safe matching out of the box.
 analysis_create = AnalysisViewSet.as_view({"post": "create"})
 analysis_detail = AnalysisViewSet.as_view({"get": "retrieve"})
+analysis_chat = AnalysisViewSet.as_view({"post": "chat"})
 
 
 @api_view(['GET'])
@@ -33,4 +34,5 @@ urlpatterns = [
     path("", api_root, name="api-root"),
     path("analysis/", analysis_create, name="analysis-create"),
     path("analysis/<uuid:pk>/", analysis_detail, name="analysis-detail"),
+    path("analysis/<uuid:pk>/chat/", analysis_chat, name="analysis-chat"),
 ]

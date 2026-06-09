@@ -2,7 +2,7 @@
 """
 Django's command-line utility for administrative tasks.
 
-This is the standard Django entry point generated for the the project project.
+This is the standard Django entry point generated for the project.
 """
 import os
 import sys

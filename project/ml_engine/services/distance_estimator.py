@@ -723,8 +723,9 @@ class DistanceEstimator:
             "empire state building": 381.0,
         }
         
-        # If it's a landmark, try hardcoded list first, then ask Gemma dynamically
-        if "landmark" in label.lower() or "building" in label.lower():
+        # If it's a landmark (identified by structural keywords or brackets), try hardcoded list first, then ask Gemma
+        is_landmark = any(k in label.lower() for k in ["landmark", "building", "palace", "tower", "castle", "church", "monument", "bridge", "statue"])
+        if is_landmark or ("(" in label and ")" in label):
             if "(" in label and ")" in label:
                 landmark_name = label.split("(")[1].split(")")[0].strip()
                 name_lower = landmark_name.lower()

@@ -23,6 +23,7 @@ safetensors>=0.4,<1.0
 # Image processing
 numpy>=1.24,<3.0
 opencv-python-headless>=4.8,<5.0
+easyocr>=1.7.0,<2.0
 
 #pipline
 celery>=5.4,<6.0

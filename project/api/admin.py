@@ -8,6 +8,12 @@ class ImageAnalysisRequestAdmin(admin.ModelAdmin):
     search_fields = ("id", "original_filename")
     readonly_fields = ("id", "created_at", "updated_at", "width", "height", "file_size")
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not change and obj.status == "PENDING":
+            from ml_engine.tasks import run_analysis_task
+            run_analysis_task.delay(str(obj.id))
+
 @admin.register(AnalysisResult)
 class AnalysisResultAdmin(admin.ModelAdmin):
     list_display = ("request", "is_deepfake", "processing_time_ms", "created_at")
