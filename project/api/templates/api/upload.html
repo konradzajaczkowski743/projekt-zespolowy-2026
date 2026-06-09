@@ -640,6 +640,242 @@
         font-size: 3rem;
       }
     }
+
+    /* Q&A Modal Styles */
+    .qa-modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .qa-modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qa-modal-content {
+      background: rgba(0, 0, 0, 0.95);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 40px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow:
+        0 0 50px rgba(0, 255, 255, 0.2),
+        inset 0 0 50px rgba(0, 255, 255, 0.1);
+      animation: slideUp 0.5s ease;
+      position: relative;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .qa-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+      padding-bottom: 15px;
+    }
+
+    .qa-modal-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+      margin: 0;
+    }
+
+    .qa-close-btn {
+      background: none;
+      border: none;
+      color: #ff00ff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qa-close-btn:hover {
+      color: #00ffff;
+      transform: rotate(90deg);
+    }
+
+    .qa-query-input {
+      width: 100%;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 10px;
+      color: #f8f8f8;
+      font-family: 'Rajdhani', monospace;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 100px;
+      max-height: 200px;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1);
+    }
+
+    .qa-query-input:focus {
+      outline: none;
+      border-color: #00ffff;
+      box-shadow:
+        inset 0 0 10px rgba(0, 255, 255, 0.1),
+        0 0 20px rgba(0, 255, 255, 0.2);
+    }
+
+    .qa-query-input::placeholder {
+      color: rgba(240, 240, 240, 0.5);
+    }
+
+    .qa-button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+    }
+
+    .qa-submit-btn {
+      background: linear-gradient(135deg, #00ffff, #ff00ff);
+      color: #000;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 50px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-submit-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+    }
+
+    .qa-submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .qa-cancel-btn {
+      background: linear-gradient(135deg, #666666, #999999);
+      color: #fff;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 50px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(100, 100, 100, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-cancel-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(100, 100, 100, 0.5);
+    }
+
+    .qa-response-container {
+      margin-top: 25px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      border-radius: 10px;
+      display: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .qa-response-container.show {
+      display: block;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .qa-response-label {
+      color: #00ffff;
+      font-weight: bold;
+      font-family: 'Orbitron', monospace;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-response-text {
+      color: #e6e6e6;
+      font-family: 'Rajdhani', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .qa-loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .qa-loading.show {
+      display: block;
+    }
+
+    .qa-spinner {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(0, 255, 255, 0.3);
+      border-top-color: #00ffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 10px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .qa-loading-text {
+      color: #00ffff;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
   </style>
 </head>
 <body>
@@ -685,6 +921,33 @@
     </div>
   </div>
 
+  <!-- Q&A Modal -->
+  <div class="qa-modal" id="qaModal">
+    <div class="qa-modal-content">
+      <div class="qa-modal-header">
+        <h2 class="qa-modal-title">❓ Pytania o zdjęcie</h2>
+        <button class="qa-close-btn" onclick="closeQAModal()">✕</button>
+      </div>
+      <textarea
+        class="qa-query-input"
+        id="qaQueryInput"
+        placeholder="Zadaj pytanie o przeanalizowanym zdjęciu... (np. Jakie obiekty widać na zdjęciu? Gdzie to zostało zrobione?)"
+      ></textarea>
+      <div class="qa-loading" id="qaLoading">
+        <div class="qa-spinner"></div>
+        <div class="qa-loading-text">Przetwarzanie pytania...</div>
+      </div>
+      <div class="qa-response-container" id="qaResponseContainer">
+        <div class="qa-response-label">Odpowiedź AI:</div>
+        <div class="qa-response-text" id="qaResponseText"></div>
+      </div>
+      <div class="qa-button-group">
+        <button class="qa-cancel-btn" onclick="closeQAModal()">Zamknij</button>
+        <button class="qa-submit-btn" id="qaSubmitBtn" onclick="submitQuery()">Wyślij pytanie</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Matrix rain effect
     function createMatrixRain() {
@@ -726,6 +989,8 @@
     let progressInterval = null;
     let selectedFile = null;
     let lastResponseData = null;
+    let currentQueryId = null;
+    let queryPollingInterval = null;
 
     // Function to add logs to terminal
     function addLog(message, type = 'processing') {
@@ -997,6 +1262,7 @@
             progressContainer.style.display = 'none';
             responseContainer.style.display = 'block';
             renderResultDetails(data);
+            addQAButton();
           }, 1000);
         } else if (data.status === 'FAILED') {
           clearInterval(pollingInterval);
@@ -1042,7 +1308,167 @@
       lastResponseData = null;
       setPreviewImage(null);
       document.getElementById('responseDetails').innerHTML = '';
+      closeQAModal();
     }
+
+    // Q&A Modal Functions
+    function openQAModal() {
+      const qaModal = document.getElementById('qaModal');
+      qaModal.classList.add('show');
+      document.getElementById('qaQueryInput').focus();
+    }
+
+    function closeQAModal() {
+      const qaModal = document.getElementById('qaModal');
+      const qaQueryInput = document.getElementById('qaQueryInput');
+      const qaResponseContainer = document.getElementById('qaResponseContainer');
+      const qaLoading = document.getElementById('qaLoading');
+      const submitBtn = document.getElementById('qaSubmitBtn');
+      
+      qaModal.classList.remove('show');
+      qaQueryInput.value = '';
+      qaResponseContainer.classList.remove('show');
+      qaLoading.classList.remove('show');
+      submitBtn.disabled = false;
+      qaQueryInput.disabled = false;
+      
+      if (queryPollingInterval) {
+        clearInterval(queryPollingInterval);
+        queryPollingInterval = null;
+      }
+      currentQueryId = null;
+    }
+
+    function submitQuery() {
+      const query = document.getElementById('qaQueryInput').value.trim();
+      
+      if (!query) {
+        alert('Proszę wpisać pytanie');
+        return;
+      }
+
+      if (!lastResponseData || !lastResponseData.task_id) {
+        alert('Błąd: brak danych analizy');
+        return;
+      }
+
+      const submitBtn = document.getElementById('qaSubmitBtn');
+      const queryInput = document.getElementById('qaQueryInput');
+      const responseContainer = document.getElementById('qaResponseContainer');
+      const loading = document.getElementById('qaLoading');
+
+      submitBtn.disabled = true;
+      queryInput.disabled = true;
+      responseContainer.classList.remove('show');
+      loading.classList.add('show');
+
+      // Send the query to the API
+      fetch('/api/v1/queries/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({
+          result_id: lastResponseData.task_id,
+          query: query,
+        }),
+        credentials: 'same-origin',
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        currentQueryId = data.query_id;
+        
+        // Start polling for the response
+        queryPollingInterval = setInterval(() => {
+          pollQueryStatus(data.query_id);
+        }, 1000);
+      })
+      .catch(error => {
+        loading.classList.remove('show');
+        submitBtn.disabled = false;
+        queryInput.disabled = false;
+        alert('Błąd przy wysyłaniu pytania: ' + error.message);
+      });
+    }
+
+    function pollQueryStatus(queryId) {
+      fetch(`/api/v1/queries/${queryId}/`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.status === 'COMPLETED') {
+          clearInterval(queryPollingInterval);
+          queryPollingInterval = null;
+
+          const loading = document.getElementById('qaLoading');
+          const responseContainer = document.getElementById('qaResponseContainer');
+          const responseText = document.getElementById('qaResponseText');
+          const submitBtn = document.getElementById('qaSubmitBtn');
+          const queryInput = document.getElementById('qaQueryInput');
+
+          loading.classList.remove('show');
+          responseText.textContent = data.ai_response;
+          responseContainer.classList.add('show');
+
+          submitBtn.disabled = false;
+          queryInput.disabled = false;
+          queryInput.focus();
+        } else if (data.status === 'FAILED') {
+          clearInterval(queryPollingInterval);
+          queryPollingInterval = null;
+
+          const loading = document.getElementById('qaLoading');
+          const responseContainer = document.getElementById('qaResponseContainer');
+          const responseText = document.getElementById('qaResponseText');
+          const submitBtn = document.getElementById('qaSubmitBtn');
+          const queryInput = document.getElementById('qaQueryInput');
+
+          loading.classList.remove('show');
+          responseText.textContent = 'Błąd przy przetwarzaniu pytania: ' + (data.error_message || 'Nieznany błąd');
+          responseContainer.classList.add('show');
+
+          submitBtn.disabled = false;
+          queryInput.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Error polling query:', error);
+      });
+    }
+
+    // Add Q&A button to response header
+    function addQAButton() {
+      const responseHeader = document.querySelector('.response-header');
+      if (responseHeader && !responseHeader.querySelector('.qa-btn')) {
+        const buttonDiv = responseHeader.querySelector('div:last-child');
+        const qaButton = document.createElement('button');
+        qaButton.className = 'copy-btn qa-btn';
+        qaButton.textContent = '❓ Pytania o zdjęcie';
+        qaButton.style.marginLeft = '10px';
+        qaButton.onclick = openQAModal;
+        buttonDiv.insertBefore(qaButton, buttonDiv.querySelector('.reset-btn'));
+      }
+    }
+
+    // Close modal when clicking outside of it
+    document.getElementById('qaModal').addEventListener('click', function(event) {
+      if (event.target === this) {
+        closeQAModal();
+      }
+    });
   </script>
 </body>
 </html>
