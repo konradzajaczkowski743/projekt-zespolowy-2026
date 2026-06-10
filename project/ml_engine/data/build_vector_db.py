@@ -46,39 +46,25 @@ def build_vector_db():
     
     with torch.no_grad():
         for lm in tqdm(valid_landmarks):
+            image_path = REF_IMAGES_DIR / lm["image_filename"]
             name = lm["name"]
-            clean_name = "".join(c for c in name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
-            lm_dir = REF_IMAGES_DIR / clean_name
             
-            # Legacy fallback: pojedynczy plik z `image_filename`
-            legacy_file = REF_IMAGES_DIR / lm.get("image_filename", "")
-            
-            image_paths = []
-            if lm_dir.exists() and lm_dir.is_dir():
-                image_paths.extend(list(lm_dir.glob("*.jpg")) + list(lm_dir.glob("*.jpeg")) + list(lm_dir.glob("*.png")))
-            elif legacy_file.exists() and legacy_file.is_file():
-                image_paths.append(legacy_file)
-                
-            if not image_paths:
-                print(f"Warning: No images found for {name}")
+            if not image_path.exists():
+                print(f"Warning: Image file not found for {name}: {image_path}")
                 continue
                 
-            lm_vectors = []
-            for img_path in image_paths:
-                try:
-                    image = Image.open(img_path).convert("RGB")
-                    inputs = processor(images=image, return_tensors="pt")
-                    inputs = {k: v.to(device) for k, v in inputs.items()}
-                    
-                    image_features = model.get_image_features(**inputs)
-                    image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
-                    lm_vectors.append(image_features.cpu().squeeze(0))
-                except Exception as e:
-                    print(f"Error processing image {img_path}: {e}")
-            
-            if lm_vectors:
-                # Store matrix of shape (N, 512) for N images
-                vector_db[name] = torch.stack(lm_vectors)
+            try:
+                image = Image.open(image_path).convert("RGB")
+                inputs = processor(images=image, return_tensors="pt")
+                inputs = {k: v.to(device) for k, v in inputs.items()}
+                
+                image_features = model.get_image_features(**inputs)
+                image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
+                
+                # Zapisujemy wektor jako tensor CPU
+                vector_db[name] = image_features.cpu().squeeze(0)
+            except Exception as e:
+                print(f"Error processing image {image_path}: {e}")
                 
     print(f"Generated embeddings for {len(vector_db)} landmarks.")
     

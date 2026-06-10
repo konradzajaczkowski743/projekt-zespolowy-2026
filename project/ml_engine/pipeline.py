@@ -178,36 +178,6 @@ def run_full_analysis(task_id: str) -> dict[str, Any]:
             image_paths=image_paths
         )
 
-        # Step 7 — Cross-validation (Gemma vs RT-DETR) ------------------------
-        if is_authentic and image_description_result:
-            described_text = " ".join(image_description_result.get("objects_identified", [])).lower()
-            detected_labels = set(obj["label"] for obj in objects_result)
-            
-            # Simple heuristic for "person"
-            mentions_person = any(word in described_text for word in ["osoba", "ludzie", "człowiek", "przechodzień", "osoby", "tłum"])
-            detects_person = "person" in detected_labels
-            
-            # Simple heuristic for "car"
-            mentions_car = any(word in described_text for word in ["samochód", "auto", "pojazd", "samochody", "auta"])
-            detects_car = any(label in detected_labels for label in ["car", "truck", "bus"])
-            
-            penalty = 0.0
-            if mentions_person and not detects_person:
-                penalty += 15.0
-                logger.info("task_id=%s | Cross-val mismatch: Gemma mentions person, RT-DETR found none", task_id)
-            if mentions_car and not detects_car:
-                penalty += 15.0
-                logger.info("task_id=%s | Cross-val mismatch: Gemma mentions car, RT-DETR found none", task_id)
-                
-            if penalty > 0:
-                old_score = forensics_result.get("confidence_score", 100.0)
-                new_score = max(0.0, old_score - penalty)
-                forensics_result["confidence_score"] = new_score
-                if new_score < 55.0:
-                    forensics_result["is_authentic"] = False
-                    forensics_result["manipulation_type"] = "inconsistent_objects"
-                logger.warning("task_id=%s | Applied forensics penalty -%.1f due to object mismatch", task_id, penalty)
-
         processing_time_ms: int = int(
             (time.monotonic() - pipeline_start) * 1000
         )

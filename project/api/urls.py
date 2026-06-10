@@ -17,7 +17,6 @@ from api.views import AnalysisViewSet, ImageQueryViewSet
 # path converters provide type-safe matching out of the box.
 analysis_create = AnalysisViewSet.as_view({"post": "create"})
 analysis_detail = AnalysisViewSet.as_view({"get": "retrieve"})
-analysis_chat = AnalysisViewSet.as_view({"post": "chat"})
 
 query_create = ImageQueryViewSet.as_view({"post": "create"})
 query_detail = ImageQueryViewSet.as_view({"get": "retrieve"})
