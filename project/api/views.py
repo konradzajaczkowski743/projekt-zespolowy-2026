@@ -108,14 +108,21 @@ class AnalysisViewSet(viewsets.ViewSet):
                 uploaded_file = ContentFile(image_bytes, name=file_name)
                 file_size = len(image_bytes)
 
+            # Truncate filename to avoid FileField max_length=100 limitation
+            original_name = uploaded_file.name
+            name_parts = os.path.splitext(original_name)
+            base_name = name_parts[0][:50]  # Keep first 50 chars of basename
+            extension = name_parts[1][:10]  # Keep extension
+            safe_filename = base_name + extension
+            
             destination_path: str = os.path.join(
-                "photos", str(task_id), uploaded_file.name
+                "photos", str(task_id), safe_filename
             )
             saved_path: str = default_storage.save(
                 destination_path,
                 ContentFile(uploaded_file.read()),
             )
-            logger.debug("Saved uploaded image: path=%s", saved_path)
+            logger.debug("Saved uploaded image: path=%s (original=%s)", saved_path, original_name)
 
             analysis_request: ImageAnalysisRequest = ImageAnalysisRequest.objects.create(
                 id=task_id,
