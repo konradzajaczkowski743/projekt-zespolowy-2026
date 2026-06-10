@@ -1,12 +1,5 @@
 """
-ASGI configuration for the the project project.
-
-Exposes the ASGI callable as a module-level variable named ``application``.
-Required if you want to serve the application using an ASGI server such as
-Daphne or Uvicorn (needed for WebSocket / async Django support).
-
-Documentation:
-    https://docs.djangoproject.com/en/5.0/howto/deployment/asgi/
+ASGI configuration for the project.
 """
 import os
 
