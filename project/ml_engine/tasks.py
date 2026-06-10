@@ -156,15 +156,11 @@ def process_image_query_task(self, query_id: str) -> dict:
                 query_id,
             )
             fallback_prompt = (
-                "Masz dostęp do obrazka oraz wyniki wcześniejszej analizy. "
-                "Odpowiedz na pytanie użytkownika bazując na obrazie. "
-                "Jeżeli poprzednia analiza nie wystarcza, użyj obrazu, by znaleźć odpowiedź.\n\n"
-                f"Opis: {analysis_data.get('description', 'brak')}\n"
-                f"Obiekty: {', '.join(analysis_data.get('objects_identified', []) or []) or 'brak'}\n"
-                f"Lokalizacja: {analysis_data.get('arbitrated_location') or 'brak'}\n"
-                f"ALPR: {', '.join([a.get('plate_text','') for a in analysis_data.get('alpr', [])]) or 'brak'}\n\n"
+                "Masz tylko to zdjęcie i pytanie użytkownika. "
+                "Pomiń poprzednią analizę i skup się wyłącznie na obrazie oraz treści pytania.\n\n"
                 f"Pytanie użytkownika: {query.user_query}\n\n"
-                "Odpowiedz konkretnie i tylko na podstawie obrazu lub dostępnych wyników.")
+                "Przeprowadź nową analizę obrazu i udziel precyzyjnej odpowiedzi wyłącznie na jego podstawie. "
+                "Jeżeli obraz zawiera odpowiedź na pytanie, podaj ją bez domysłów.")
             try:
                 response = analyzer.query_image_with_context(image_path, fallback_prompt)
             except Exception as e:
