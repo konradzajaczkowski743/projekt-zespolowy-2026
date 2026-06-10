@@ -11,6 +11,7 @@ Integrations:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 import numpy as np
 from PIL import Image
@@ -68,13 +69,9 @@ class ALPRAnalyzer:
         """
         Detect and transcribe all licence plates found in the supplied images.
 
-        In production this method will:
-
-        1. Locate plate regions using a permissively licensed detector (e.g., RT-DETR).
-        2. Crop, deskew, and normalise each region.
-        3. Pass the region through an OCR model (CRNN or TrOCR) to get text.
-        4. Classify the country of origin from the plate layout / font.
-        5. Filter results by ``min_plate_confidence``.
+        This implementation uses a local OCR-based ALPR pipeline when possible,
+        falling back to the existing Gemma VLM analysis only if the local
+        attempt does not yield any results.
 
         Args:
             image_paths: List of relative media-root paths to the uploaded
@@ -82,25 +79,7 @@ class ALPRAnalyzer:
 
         Returns:
             List of ALPR result dictionaries, each conforming to
-            ``ALPRResultSerializer``::
-
-                [
-                    {
-                        "plate_text": str,
-                        "confidence": float,     # [0.0, 1.0]
-                        "country_code": str | None,  # ISO 3166-1 alpha-2
-                        "bounding_box": {
-                            "x_min": int,
-                            "y_min": int,
-                            "x_max": int,
-                            "y_max": int
-                        }
-                    },
-                    ...
-                ]
-
-            Returns an empty list when no plates are detected with sufficient
-            confidence.
+            ``ALPRResultSerializer``.
         """
         logger.info(
             "ALPRAnalyzer.recognize_plates: images=%d min_confidence=%s",

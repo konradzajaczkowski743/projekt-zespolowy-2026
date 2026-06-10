@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from api.models import AnalysisResult, ImageAnalysisRequest
+from api.models import AnalysisResult, ImageAnalysisRequest, ImageQuery
 
 
 # Serializers for specific ML output fields
@@ -243,7 +243,15 @@ class AnalysisRequestSerializer(serializers.Serializer):
     """
 
     image: serializers.ImageField = serializers.ImageField(
+        required=False,
+        allow_null=True,
         help_text="Image file to analyse.",
+    )
+    image_url: serializers.URLField = serializers.URLField(
+        required=False,
+        allow_null=True,
+        allow_blank=False,
+        help_text="Image URL to download and analyse.",
     )
     latitude: serializers.FloatField = serializers.FloatField(
         required=False,
@@ -280,6 +288,29 @@ class AnalysisRequestSerializer(serializers.Serializer):
                 f"Allowed types: {', '.join(sorted(allowed_content_types))}."
             )
         return value
+
+    def validate_image_url(self, value: str) -> str:
+        if not value.lower().startswith(("http://", "https://")):
+            raise serializers.ValidationError(
+                "URL must start with http:// or https://"
+            )
+        return value
+
+    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
+        image = data.get("image")
+        image_url = data.get("image_url")
+
+        if image and image_url:
+            raise serializers.ValidationError(
+                "Provide either an image file or an image URL, not both."
+            )
+
+        if not image and not image_url:
+            raise serializers.ValidationError(
+                "Upload an image file or provide an image URL to analyse."
+            )
+
+        return data
 
 
 # Output serializers
@@ -364,4 +395,52 @@ class AnalysisStatusSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "result",
+        ]
+
+
+class ImageQueryRequestSerializer(serializers.Serializer):
+    """
+    Input serializer for submitting a query about an analyzed image.
+
+    Fields:
+        query: The user's question about the image.
+    """
+
+    query: serializers.CharField = serializers.CharField(
+        max_length=1000,
+        help_text="User's question about the analyzed image.",
+    )
+
+
+class ImageQueryResponseSerializer(serializers.ModelSerializer):
+    """
+    Serializer for an ImageQuery response.
+
+    Used to return query status and AI response to the client.
+    """
+
+    query_id: serializers.UUIDField = serializers.UUIDField(
+        source="id",
+        read_only=True,
+        help_text="UUID identifying this query.",
+    )
+
+    class Meta:
+        """Metadata for the ImageQueryResponseSerializer."""
+
+        model = ImageQuery
+        fields = [
+            "query_id",
+            "user_query",
+            "ai_response",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "query_id",
+            "ai_response",
+            "status",
+            "created_at",
+            "updated_at",
         ]

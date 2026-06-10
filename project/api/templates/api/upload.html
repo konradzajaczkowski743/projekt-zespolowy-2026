@@ -3,76 +3,1522 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test autentyczności zdjęcia</title>
+  <title>� NEURAL IMAGE ANALYZER v2.0</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    label { display: block; margin-top: 16px; }
-    input, button { font-size: 1rem; padding: 8px; }
-    button { margin-top: 12px; }
-    pre { background: #f4f4f4; border: 1px solid #ddd; padding: 16px; white-space: pre-wrap; word-break: break-word; }
-    .success { color: #0a5; }
-    .error { color: #a00; }
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Rajdhani', monospace;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 219, 226, 0.3) 0%, transparent 50%);
+      animation: backgroundShift 20s ease-in-out infinite;
+      z-index: -1;
+    }
+
+    @keyframes backgroundShift {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 0.8; }
+    }
+
+    .container {
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow:
+        0 0 50px rgba(0, 255, 255, 0.2),
+        inset 0 0 50px rgba(0, 255, 255, 0.1);
+      max-width: 700px;
+      width: 90%;
+      position: relative;
+      overflow: hidden;
+      animation: hologram 0.8s ease-out;
+    }
+
+    @keyframes hologram {
+      from {
+        opacity: 0;
+        transform: translateY(50px) scale(0.9);
+        box-shadow: 0 0 0 rgba(0, 255, 255, 0);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow:
+          0 0 50px rgba(0, 255, 255, 0.2),
+          inset 0 0 50px rgba(0, 255, 255, 0.1);
+      }
+    }
+
+    .container::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg,
+        #00ffff, #ff00ff, #ffff00, #00ffff,
+        #ff00ff, #ffff00, #00ffff);
+      border-radius: 22px;
+      z-index: -1;
+      animation: rainbowBorder 3s linear infinite;
+      opacity: 0.7;
+    }
+
+    @keyframes rainbowBorder {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes shimmer {
+      0% { transform: rotate(0deg) translateX(-100%); }
+      100% { transform: rotate(0deg) translateX(100%); }
+    }
+
+    h1 {
+      text-align: center;
+      color: #00ffff;
+      margin-bottom: 10px;
+      font-family: 'Orbitron', monospace;
+      font-size: 2.8rem;
+      font-weight: 900;
+      text-shadow:
+        0 0 10px #00ffff,
+        0 0 20px #00ffff,
+        0 0 40px #00ffff;
+      animation: neonFlicker 2s ease-in-out infinite alternate;
+      letter-spacing: 2px;
+    }
+
+    @keyframes neonFlicker {
+      from {
+        text-shadow:
+          0 0 10px #00ffff,
+          0 0 20px #00ffff,
+          0 0 40px #00ffff;
+      }
+      to {
+        text-shadow:
+          0 0 5px #00ffff,
+          0 0 10px #00ffff,
+          0 0 20px #00ffff,
+          0 0 35px #00ffff;
+      }
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #b0b0b0;
+      margin-bottom: 30px;
+      font-size: 1.1rem;
+      text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    }
+
+    .upload-area {
+      border: 2px dashed #00ffff;
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      margin-bottom: 30px;
+      transition: all 0.3s ease;
+      background: linear-gradient(135deg,
+        rgba(0, 255, 255, 0.05),
+        rgba(255, 0, 255, 0.05));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-area::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(0, 255, 255, 0.1),
+        transparent);
+      animation: scanLine 3s infinite;
+    }
+
+    @keyframes scanLine {
+      0% { left: -100%; }
+      100% { left: 100%; }
+    }
+
+    .upload-area:hover {
+      border-color: #ff00ff;
+      background: linear-gradient(135deg,
+        rgba(0, 255, 255, 0.1),
+        rgba(255, 0, 255, 0.1));
+      transform: scale(1.02);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+    }
+
+    .upload-area.dragover {
+      border-color: #00ff00;
+      background: linear-gradient(135deg,
+        rgba(0, 255, 0, 0.1),
+        rgba(255, 0, 255, 0.1));
+      animation: matrixPulse 0.5s infinite alternate;
+      box-shadow: 0 0 40px rgba(0, 255, 0, 0.5);
+    }
+
+    @keyframes matrixPulse {
+      from {
+        box-shadow: 0 0 40px rgba(0, 255, 0, 0.5);
+      }
+      to {
+        box-shadow: 0 0 60px rgba(0, 255, 0, 0.8);
+      }
+    }
+
+    .upload-icon {
+      font-size: 4rem;
+      color: #00ffff;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 0 10px #00ffff);
+      animation: hologramFloat 3s ease-in-out infinite;
+    }
+
+    @keyframes hologramFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .upload-url-input {
+      width: 100%;
+      max-width: 480px;
+      margin: 16px 0 0 0;
+      padding: 14px 18px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      font-family: 'Orbitron', monospace;
+      font-size: 1rem;
+      outline: none;
+      box-shadow: inset 0 0 18px rgba(0, 255, 255, 0.12);
+      transition: border-color 0.25s ease, background 0.25s ease;
+    }
+
+    .upload-url-input:focus {
+      border-color: #00ffff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .upload-btn {
+      background: linear-gradient(135deg, #00ffff, #ff00ff);
+      color: #000;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 50px;
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+      position: relative;
+      overflow: hidden;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .upload-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+    }
+
+    .upload-btn.launching {
+      animation: rocketLift 0.8s ease-out forwards;
+      box-shadow: 0 0 50px rgba(255, 128, 0, 0.8);
+    }
+
+    @keyframes rocketLift {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      40% {
+        transform: translateY(-25px) scale(1.05);
+      }
+      100% {
+        transform: translateY(-160px) scale(0.7);
+        opacity: 0;
+      }
+    }
+
+    .rocket-explosion {
+      position: absolute;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      font-size: 2.5rem;
+      animation: explosionBurst 0.9s ease-out forwards;
+      pointer-events: none;
+      text-shadow: 0 0 20px rgba(255, 80, 0, 0.75);
+    }
+
+    @keyframes explosionBurst {
+      0% {
+        transform: translate(-50%, 0) scale(0.5);
+        opacity: 1;
+      }
+      50% {
+        transform: translate(-50%, -60px) scale(1.4);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -120px) scale(0.8);
+        opacity: 0;
+      }
+    }
+
+    .upload-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent);
+      transition: left 0.5s;
+    }
+
+    .upload-btn:hover::before {
+      left: 100%;
+    }
+
+    .file-name {
+      margin-top: 15px;
+      font-weight: bold;
+      color: #333;
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .progress-container {
+      margin-top: 30px;
+      display: none;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid #00ffff;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 15px;
+      position: relative;
+    }
+
+    .progress-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 10px,
+        rgba(0, 255, 255, 0.1) 10px,
+        rgba(0, 255, 255, 0.1) 20px
+      );
+      animation: progressScan 2s linear infinite;
+    }
+
+    @keyframes progressScan {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
+      width: 0%;
+      transition: width 0.3s ease;
+      border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.5),
+        transparent);
+      animation: progressShine 1.5s ease-in-out infinite;
+    }
+
+    @keyframes progressShine {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .status-text {
+      text-align: center;
+      font-family: 'Orbitron', monospace;
+      font-weight: bold;
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      animation: statusGlow 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes statusGlow {
+      from { text-shadow: 0 0 5px currentColor; }
+      to { text-shadow: 0 0 15px currentColor, 0 0 25px currentColor; }
+    }
+
+    .status-pending {
+      color: #ffa500;
+      text-shadow: 0 0 10px #ffa500;
+    }
+    .status-processing {
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+    }
+    .status-completed {
+      color: #00ff00;
+      text-shadow: 0 0 10px #00ff00;
+    }
+    .status-failed {
+      color: #ff0040;
+      text-shadow: 0 0 10px #ff0040;
+    }
+
+    .response-container {
+      margin-top: 30px;
+      display: none;
+    }
+
+    .response-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .response-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+    }
+
+    .copy-btn {
+      background: linear-gradient(135deg, #00ffff, #ff00ff);
+      color: #000;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .copy-btn:hover {
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      transform: scale(1.05);
+    }
+
+    .reset-btn {
+      background: linear-gradient(135deg, #ff6b6b, #ff00ff);
+      color: #fff;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-left: 10px;
+    }
+
+    .reset-btn:hover {
+      box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+      transform: scale(1.05);
+    }
+
+    .response-content {
+      background: rgba(0, 0, 0, 0.85);
+      border: 1px solid #00ffff;
+      border-radius: 12px;
+      padding: 20px;
+      max-height: 450px;
+      overflow-y: auto;
+      font-family: 'Rajdhani', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #f8f8f8;
+      animation: terminalBoot 0.5s ease;
+    }
+
+    .response-preview {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .uploaded-preview {
+      max-width: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(0, 255, 255, 0.4);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.15);
+      max-height: 260px;
+      object-fit: contain;
+    }
+
+    .response-details {
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-row {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 255, 255, 0.15);
+    }
+
+    .detail-key {
+      color: #00ffff;
+      font-weight: 700;
+      font-family: 'Orbitron', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .detail-value {
+      color: #e6e6e6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .detail-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #c0f0ff;
+    }
+
+    .detail-list li {
+      margin-bottom: 6px;
+    }
+
+    @keyframes terminalBoot {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .matrix-rain {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -2;
+      overflow: hidden;
+    }
+
+    .matrix-column {
+      position: absolute;
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      opacity: 0.1;
+      animation: matrixFall linear infinite;
+    }
+
+    @keyframes matrixFall {
+      0% {
+        transform: translateY(-100vh);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.1;
+      }
+      90% {
+        opacity: 0.1;
+      }
+      100% {
+        transform: translateY(100vh);
+        opacity: 0;
+      }
+    }
+
+    .terminal-logs {
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #00ffff;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .terminal-logs::before {
+      content: '>';
+      color: #00ff00;
+      margin-right: 5px;
+    }
+
+    .log-entry {
+      margin: 5px 0;
+      animation: logFadeIn 0.3s ease;
+    }
+
+    @keyframes logFadeIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-entry.pending { color: #ffa500; }
+    .log-entry.processing { color: #00ffff; }
+    .log-entry.completed { color: #00ff00; }
+    .log-entry.failed { color: #ff0040; }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+        margin: 20px;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      .upload-area {
+        padding: 20px;
+      }
+
+      .upload-icon {
+        font-size: 3rem;
+      }
+    }
+
+    /* Q&A Modal Styles */
+    .qa-modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .qa-modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qa-modal-content {
+      background: rgba(0, 0, 0, 0.95);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 40px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow:
+        0 0 50px rgba(0, 255, 255, 0.2),
+        inset 0 0 50px rgba(0, 255, 255, 0.1);
+      animation: slideUp 0.5s ease;
+      position: relative;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .qa-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+      padding-bottom: 15px;
+    }
+
+    .qa-modal-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+      margin: 0;
+    }
+
+    .qa-close-btn {
+      background: none;
+      border: none;
+      color: #ff00ff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qa-close-btn:hover {
+      color: #00ffff;
+      transform: rotate(90deg);
+    }
+
+    .qa-query-input {
+      width: 100%;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 255, 255, 0.3);
+      border-radius: 10px;
+      color: #f8f8f8;
+      font-family: 'Rajdhani', monospace;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 100px;
+      max-height: 200px;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1);
+    }
+
+    .qa-query-input:focus {
+      outline: none;
+      border-color: #00ffff;
+      box-shadow:
+        inset 0 0 10px rgba(0, 255, 255, 0.1),
+        0 0 20px rgba(0, 255, 255, 0.2);
+    }
+
+    .qa-query-input::placeholder {
+      color: rgba(240, 240, 240, 0.5);
+    }
+
+    .qa-button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+    }
+
+    .qa-submit-btn {
+      background: linear-gradient(135deg, #00ffff, #ff00ff);
+      color: #000;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 50px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-submit-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+    }
+
+    .qa-submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .qa-cancel-btn {
+      background: linear-gradient(135deg, #666666, #999999);
+      color: #fff;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 50px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(100, 100, 100, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-cancel-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(100, 100, 100, 0.5);
+    }
+
+    .qa-response-container {
+      margin-top: 25px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      border-radius: 10px;
+      display: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .qa-response-container.show {
+      display: block;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .qa-response-label {
+      color: #00ffff;
+      font-weight: bold;
+      font-family: 'Orbitron', monospace;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .qa-response-text {
+      color: #e6e6e6;
+      font-family: 'Rajdhani', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .qa-loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .qa-loading.show {
+      display: block;
+    }
+
+    .qa-spinner {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(0, 255, 255, 0.3);
+      border-top-color: #00ffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 10px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .qa-loading-text {
+      color: #00ffff;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
   </style>
 </head>
 <body>
-  <h1>Test autentyczności zdjęcia</h1>
-  <p>Wybierz obraz i wyślij do API. Otrzymasz JSON z wynikiem analizy.</p>
-  <form id="upload-form" enctype="multipart/form-data" method="post">
-    {% csrf_token %}
-    <label>
-      Zdjęcie:
-      <input type="file" name="image" accept="image/jpeg,image/png,image/webp" required>
-    </label>
-    <label>
-      Latitude (opcjonalnie):
-      <input type="number" step="any" name="latitude" placeholder="50.0619">
-    </label>
-    <label>
-      Longitude (opcjonalnie):
-      <input type="number" step="any" name="longitude" placeholder="19.9366">
-    </label>
-    <button type="submit">Wyślij do API</button>
-  </form>
+  <div class="matrix-rain" id="matrixRain"></div>
 
-  <h2>Odpowiedź:</h2>
-  <pre id="response">Brak odpowiedzi</pre>
+  <div class="container">
+    <h1>🔮 NEURAL IMAGE ANALYZER v2.0</h1>
+    <p class="subtitle">Prześlij zdjęcie do skanowania przez sztuczną inteligencję</p>
+
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📸</div>
+      <p>Przeciągnij i upuść zdjęcie tutaj lub kliknij aby wybrać albo wklej URL obrazu</p>
+      <input type="file" id="fileInput" class="file-input" accept="image/jpeg,image/png,image/webp">
+      <input type="url" id="urlInput" class="upload-url-input" placeholder="Wklej URL obrazu tutaj" />
+      {% csrf_token %}
+      <button type="button" class="upload-btn" onclick="document.getElementById('fileInput').click()">
+        Wybierz zdjęcie
+      </button>
+      <div class="file-name" id="fileName" style="display: none;"></div>
+    </div>
+
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="status-text" id="statusText">Przygotowywanie analizy...</div>
+    </div>
+    <div class="terminal-logs" id="terminalLogs"></div>
+
+    <div class="response-container" id="responseContainer">
+      <div class="response-header">
+        <div class="response-title">📊 Wyniki analizy</div>
+        <div>
+          <button class="copy-btn" onclick="copyResults(this)">Kopiuj</button>
+          <button class="reset-btn" onclick="resetForm()">Prześlij kolejne zdjęcie</button>
+        </div>
+      </div>
+      <div class="response-content" id="responseContent">
+        <div class="response-preview" id="responsePreview" style="display:none;">
+          <img id="uploadedPreview" class="uploaded-preview" alt="Przesłane zdjęcie">
+        </div>
+        <div class="response-details" id="responseDetails"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Q&A Modal -->
+  <div class="qa-modal" id="qaModal">
+    <div class="qa-modal-content">
+      <div class="qa-modal-header">
+        <h2 class="qa-modal-title">❓ Pytania o zdjęcie</h2>
+        <button class="qa-close-btn" onclick="closeQAModal()">✕</button>
+      </div>
+      <textarea
+        class="qa-query-input"
+        id="qaQueryInput"
+        placeholder="Zadaj pytanie o przeanalizowanym zdjęciu... (np. Jakie obiekty widać na zdjęciu? Gdzie to zostało zrobione?)"
+      ></textarea>
+      <div class="qa-loading" id="qaLoading">
+        <div class="qa-spinner"></div>
+        <div class="qa-loading-text">Przetwarzanie pytania...</div>
+      </div>
+      <div class="qa-response-container" id="qaResponseContainer">
+        <div class="qa-response-label">Odpowiedź AI:</div>
+        <div class="qa-response-text" id="qaResponseText"></div>
+      </div>
+      <div class="qa-button-group">
+        <button class="qa-cancel-btn" onclick="closeQAModal()">Zamknij</button>
+        <button class="qa-submit-btn" id="qaSubmitBtn" onclick="submitQuery()">Wyślij pytanie</button>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const form = document.getElementById('upload-form');
-    const responseEl = document.getElementById('response');
+    // Matrix rain effect
+    function createMatrixRain() {
+      const matrixContainer = document.getElementById('matrixRain');
+      const columns = Math.floor(window.innerWidth / 20);
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
+      for (let i = 0; i < columns; i++) {
+        const column = document.createElement('div');
+        column.className = 'matrix-column';
+        column.style.left = i * 20 + 'px';
+        column.style.animationDelay = Math.random() * 2 + 's';
+        column.style.animationDuration = (Math.random() * 3 + 2) + 's';
 
-      const formData = new FormData(form);
-      const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        // Generate random matrix characters
+        const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+        let text = '';
+        for (let j = 0; j < Math.floor(Math.random() * 30 + 10); j++) {
+          text += chars[Math.floor(Math.random() * chars.length)];
+        }
+        column.textContent = text;
 
-      responseEl.textContent = 'Wysyłanie...';
-      responseEl.className = '';
+        matrixContainer.appendChild(column);
+      }
+    }
+
+    createMatrixRain();
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const urlInput = document.getElementById('urlInput');
+    const fileName = document.getElementById('fileName');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('statusText');
+    const responseContainer = document.getElementById('responseContainer');
+    const terminalLogs = document.getElementById('terminalLogs');
+
+    let currentTaskId = null;
+    let pollingInterval = null;
+    let progressInterval = null;
+    let selectedFile = null;
+    let selectedUrl = null;
+    let lastResponseData = null;
+    let currentQueryId = null;
+    let queryPollingInterval = null;
+
+    // Function to add logs to terminal
+    function addLog(message, type = 'processing') {
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${type}`;
+      logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      terminalLogs.appendChild(logEntry);
+      terminalLogs.scrollTop = terminalLogs.scrollHeight;
+      terminalLogs.style.display = 'block';
+    }
+
+    function setPreviewImage(fileOrUrl) {
+      const preview = document.getElementById('responsePreview');
+      const previewImage = document.getElementById('uploadedPreview');
+      if (!fileOrUrl) {
+        preview.style.display = 'none';
+        previewImage.src = '';
+        return;
+      }
+
+      if (typeof fileOrUrl === 'string') {
+        previewImage.src = fileOrUrl;
+      } else {
+        previewImage.src = URL.createObjectURL(fileOrUrl);
+        previewImage.onload = () => URL.revokeObjectURL(previewImage.src);
+      }
+      preview.style.display = 'flex';
+    }
+
+    function renderValue(value) {
+      if (value === null || value === undefined) {
+        return 'brak danych';
+      }
+      if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+          return value;
+        }
+        return value;
+      }
+      return String(value);
+    }
+
+    function renderResultDetails(data) {
+      const details = document.getElementById('responseDetails');
+      details.innerHTML = '';
+
+      Object.entries(data).forEach(([key, value]) => {
+        const row = document.createElement('div');
+        row.className = 'detail-row';
+
+        const label = document.createElement('div');
+        label.className = 'detail-key';
+        label.textContent = key.replace(/_/g, ' ').toUpperCase();
+
+        const content = document.createElement('div');
+        content.className = 'detail-value';
+
+        if (Array.isArray(value)) {
+          if (value.length === 0) {
+            content.textContent = '[]';
+          } else {
+            const list = document.createElement('ul');
+            list.className = 'detail-list';
+            value.forEach(item => {
+              const itemEl = document.createElement('li');
+              itemEl.textContent = typeof item === 'object' ? JSON.stringify(item, null, 2) : item;
+              list.appendChild(itemEl);
+            });
+            content.appendChild(list);
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          const list = document.createElement('ul');
+          list.className = 'detail-list';
+          Object.entries(value).forEach(([subKey, subValue]) => {
+            const itemEl = document.createElement('li');
+            itemEl.textContent = `${subKey}: ${renderValue(subValue)}`;
+            list.appendChild(itemEl);
+          });
+          content.appendChild(list);
+        } else {
+          content.textContent = renderValue(value);
+        }
+
+        row.appendChild(label);
+        row.appendChild(content);
+        details.appendChild(row);
+      });
+    }
+
+    // Drag and drop functionality
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight() {
+      uploadArea.classList.add('dragover');
+    }
+
+    function unhighlight() {
+      uploadArea.classList.remove('dragover');
+    }
+
+    uploadArea.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      handleFiles(files);
+    }
+
+    fileInput.addEventListener('change', function() {
+      handleFiles(this.files);
+    });
+
+    urlInput.addEventListener('input', function() {
+      handleUrlInput(this.value.trim());
+    });
+
+    function handleFiles(files) {
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          selectedFile = file;
+          selectedUrl = null;
+          urlInput.value = '';
+          fileName.textContent = `📁 ${file.name}`;
+          fileName.style.display = 'block';
+          uploadArea.querySelector('p').textContent = 'Świetnie! Kliknij "Wyślij do analizy"';
+          createAnalysisButton();
+        }
+      }
+    }
+
+    function handleUrlInput(url) {
+      selectedUrl = url || null;
+      if (selectedUrl) {
+        selectedFile = null;
+        fileInput.value = '';
+        fileName.style.display = 'none';
+        uploadArea.querySelector('p').textContent = 'Świetnie! Kliknij "Wyślij do analizy"';
+        createAnalysisButton();
+      }
+    }
+
+    function createAnalysisButton() {
+      let submitBtn = uploadArea.querySelector('.analysis-launch-btn');
+      if (submitBtn) {
+        return submitBtn;
+      }
+
+      submitBtn = document.createElement('button');
+      submitBtn.type = 'button';
+      submitBtn.className = 'upload-btn analysis-launch-btn';
+      submitBtn.textContent = '🚀 Wyślij do analizy';
+      submitBtn.style.marginTop = '20px';
+      submitBtn.addEventListener('click', () => {
+        animateRocket(submitBtn);
+        setTimeout(() => submitForm(), 220);
+      });
+      uploadArea.appendChild(submitBtn);
+      return submitBtn;
+    }
+
+    function animateRocket(button) {
+      button.disabled = true;
+      button.classList.add('launching');
+
+      const explosion = document.createElement('div');
+      explosion.className = 'rocket-explosion';
+      explosion.textContent = '💥';
+      uploadArea.appendChild(explosion);
+
+      setTimeout(() => {
+        explosion.remove();
+      }, 900);
+    }
+
+    function submitForm() {
+      const fileToSend = selectedFile || fileInput.files[0];
+      const imageUrl = selectedUrl || urlInput.value.trim();
+
+      if (!fileToSend && !imageUrl) {
+        addLog('Brak pliku lub URL do wysłania.', 'failed');
+        return;
+      }
+
+      const formData = new FormData();
+      if (fileToSend) {
+        setPreviewImage(fileToSend);
+        formData.append('image', fileToSend);
+      } else {
+        setPreviewImage(imageUrl);
+        formData.append('image_url', imageUrl);
+      }
+      formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+      startAnalysis(formData);
+    }
+
+    async function startAnalysis(formData) {
+      // Hide upload area and show progress
+      uploadArea.style.display = 'none';
+      progressContainer.style.display = 'block';
+      responseContainer.style.display = 'none';
+
+      // Start progress animation
+      let progress = 0;
+      progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        progressFill.style.width = progress + '%';
+      }, 500);
+
+      statusText.textContent = '🔗 Nawiązywanie połączenia z serwerem...';
+      statusText.className = 'status-text status-pending';
+      addLog('Initializing neural network connection...', 'pending');
 
       try {
         const response = await fetch('/api/v1/analysis/', {
           method: 'POST',
           headers: {
-            'X-CSRFToken': csrftoken,
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
           },
           body: formData,
           credentials: 'same-origin',
         });
 
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
+        if (response.ok) {
           const data = await response.json();
-          responseEl.textContent = JSON.stringify(data, null, 2);
-          responseEl.className = response.ok ? 'success' : 'error';
+          currentTaskId = data.task_id;
+          statusText.textContent = '⚡ Aktywacja protokołów AI...';
+          statusText.className = 'status-text status-processing';
+          addLog(`Task ID: ${data.task_id} - Analysis pipeline engaged`, 'processing');
+
+          // Start polling for status
+          pollingInterval = setInterval(() => {
+            pollStatus(data.task_id);
+          }, 2000);
         } else {
-          const text = await response.text();
-          responseEl.textContent = `Błąd serwera ${response.status}: ${text}`;
-          responseEl.className = 'error';
+          throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
-        responseEl.textContent = 'Błąd sieci: ' + String(error);
-        responseEl.className = 'error';
+        clearInterval(progressInterval);
+        statusText.textContent = '❌ Błąd systemu - połączenie zerwane';
+        statusText.className = 'status-text status-failed';
+        addLog(`Connection failed: ${error.message}`, 'failed');
+        progressFill.style.width = '0%';
+        setTimeout(() => {
+          uploadArea.style.display = 'block';
+          progressContainer.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    async function pollStatus(taskId) {
+      try {
+        const response = await fetch(`/api/v1/analysis/${taskId}/`, {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'PROCESSING') {
+          statusText.textContent = '🔬 AI analizuje zdjęcie...';
+          statusText.className = 'status-text status-processing';
+          addLog('Neural network processing image data...', 'processing');
+          progressFill.style.width = '70%';
+        } else if (data.status === 'COMPLETED') {
+          clearInterval(pollingInterval);
+          clearInterval(progressInterval);
+          progressFill.style.width = '100%';
+          statusText.textContent = '✅ Analiza zakończona!';
+          statusText.className = 'status-text status-completed';
+          addLog('Analysis complete - displaying results', 'completed');
+
+          // Show results
+          lastResponseData = data;
+          setTimeout(() => {
+            progressContainer.style.display = 'none';
+            responseContainer.style.display = 'block';
+            renderResultDetails(data);
+            addQAButton();
+          }, 1000);
+        } else if (data.status === 'FAILED') {
+          clearInterval(pollingInterval);
+          clearInterval(progressInterval);
+          statusText.textContent = '❌ Analiza nie powiodła się';
+          statusText.className = 'status-text status-failed';
+          addLog('Analysis failed - system error detected', 'failed');
+          progressFill.style.width = '0%';
+        }
+      } catch (error) {
+        clearInterval(pollingInterval);
+        clearInterval(progressInterval);
+        statusText.textContent = '❌ Błąd połączenia';
+        statusText.className = 'status-text status-failed';
+        addLog(`Connection error: ${error.message}`, 'failed');
+      }
+    }
+
+    function copyResults(button) {
+      if (!lastResponseData) {
+        return;
+      }
+      navigator.clipboard.writeText(JSON.stringify(lastResponseData, null, 2)).then(() => {
+        const originalText = button.textContent;
+        button.textContent = '✅ Skopiowano!';
+        setTimeout(() => {
+          button.textContent = originalText;
+        }, 2000);
+      });
+    }
+
+    // Reset functionality
+    function resetForm() {
+      uploadArea.style.display = 'block';
+      progressContainer.style.display = 'none';
+      responseContainer.style.display = 'none';
+      fileInput.value = '';
+      fileName.style.display = 'none';
+      uploadArea.querySelector('p').textContent = 'Przeciągnij i upuść zdjęcie tutaj lub kliknij aby wybrać';
+      const submitBtn = uploadArea.querySelector('.analysis-launch-btn');
+      if (submitBtn) submitBtn.remove();
+      selectedFile = null;
+      lastResponseData = null;
+      setPreviewImage(null);
+      document.getElementById('responseDetails').innerHTML = '';
+      closeQAModal();
+    }
+
+    // Q&A Modal Functions
+    function openQAModal() {
+      const qaModal = document.getElementById('qaModal');
+      qaModal.classList.add('show');
+      document.getElementById('qaQueryInput').focus();
+    }
+
+    function closeQAModal() {
+      const qaModal = document.getElementById('qaModal');
+      const qaQueryInput = document.getElementById('qaQueryInput');
+      const qaResponseContainer = document.getElementById('qaResponseContainer');
+      const qaLoading = document.getElementById('qaLoading');
+      const submitBtn = document.getElementById('qaSubmitBtn');
+      
+      qaModal.classList.remove('show');
+      qaQueryInput.value = '';
+      qaResponseContainer.classList.remove('show');
+      qaLoading.classList.remove('show');
+      submitBtn.disabled = false;
+      qaQueryInput.disabled = false;
+      
+      if (queryPollingInterval) {
+        clearInterval(queryPollingInterval);
+        queryPollingInterval = null;
+      }
+      currentQueryId = null;
+    }
+
+    function submitQuery() {
+      const query = document.getElementById('qaQueryInput').value.trim();
+      
+      if (!query) {
+        alert('Proszę wpisać pytanie');
+        return;
+      }
+
+      if (!lastResponseData || !lastResponseData.task_id) {
+        alert('Błąd: brak danych analizy');
+        return;
+      }
+
+      const submitBtn = document.getElementById('qaSubmitBtn');
+      const queryInput = document.getElementById('qaQueryInput');
+      const responseContainer = document.getElementById('qaResponseContainer');
+      const loading = document.getElementById('qaLoading');
+
+      submitBtn.disabled = true;
+      queryInput.disabled = true;
+      responseContainer.classList.remove('show');
+      loading.classList.add('show');
+
+      // Send the query to the API
+      fetch('/api/v1/queries/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({
+          result_id: lastResponseData.task_id,
+          query: query,
+        }),
+        credentials: 'same-origin',
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        currentQueryId = data.query_id;
+        
+        // Start polling for the response
+        queryPollingInterval = setInterval(() => {
+          pollQueryStatus(data.query_id);
+        }, 1000);
+      })
+      .catch(error => {
+        loading.classList.remove('show');
+        submitBtn.disabled = false;
+        queryInput.disabled = false;
+        alert('Błąd przy wysyłaniu pytania: ' + error.message);
+      });
+    }
+
+    function pollQueryStatus(queryId) {
+      fetch(`/api/v1/queries/${queryId}/`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.status === 'COMPLETED') {
+          clearInterval(queryPollingInterval);
+          queryPollingInterval = null;
+
+          const loading = document.getElementById('qaLoading');
+          const responseContainer = document.getElementById('qaResponseContainer');
+          const responseText = document.getElementById('qaResponseText');
+          const submitBtn = document.getElementById('qaSubmitBtn');
+          const queryInput = document.getElementById('qaQueryInput');
+
+          loading.classList.remove('show');
+          responseText.textContent = data.ai_response;
+          responseContainer.classList.add('show');
+
+          submitBtn.disabled = false;
+          queryInput.disabled = false;
+          queryInput.focus();
+        } else if (data.status === 'FAILED') {
+          clearInterval(queryPollingInterval);
+          queryPollingInterval = null;
+
+          const loading = document.getElementById('qaLoading');
+          const responseContainer = document.getElementById('qaResponseContainer');
+          const responseText = document.getElementById('qaResponseText');
+          const submitBtn = document.getElementById('qaSubmitBtn');
+          const queryInput = document.getElementById('qaQueryInput');
+
+          loading.classList.remove('show');
+          responseText.textContent = 'Błąd przy przetwarzaniu pytania: ' + (data.error_message || 'Nieznany błąd');
+          responseContainer.classList.add('show');
+
+          submitBtn.disabled = false;
+          queryInput.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Error polling query:', error);
+      });
+    }
+
+    // Add Q&A button to response header
+    function addQAButton() {
+      const responseHeader = document.querySelector('.response-header');
+      if (responseHeader && !responseHeader.querySelector('.qa-btn')) {
+        const buttonDiv = responseHeader.querySelector('div:last-child');
+        const qaButton = document.createElement('button');
+        qaButton.className = 'copy-btn qa-btn';
+        qaButton.textContent = '❓ Pytania o zdjęcie';
+        qaButton.style.marginLeft = '10px';
+        qaButton.onclick = openQAModal;
+        buttonDiv.insertBefore(qaButton, buttonDiv.querySelector('.reset-btn'));
+      }
+    }
+
+    // Close modal when clicking outside of it
+    document.getElementById('qaModal').addEventListener('click', function(event) {
+      if (event.target === this) {
+        closeQAModal();
       }
     });
   </script>
